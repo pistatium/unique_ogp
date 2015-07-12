@@ -6,7 +6,7 @@ This returns an image of the size suitable for OGP image of Facebook when you gi
 ## Sample
 
 > http://localhost:8088/title=Unique%20OGP
-![sample.png](https://raw.github.com/wiki/pistatium/unique_ogp/resources/sample.png)
+![sample.png](https://raw.githubusercontent.com/pistatium/unique_ogp/master/resources/sample.png)
 
 
 ## Setup
