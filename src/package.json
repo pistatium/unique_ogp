@@ -9,7 +9,6 @@
   "author": "kimihiro_n",
   "license": "MIT",
   "devDependencies": {
-    "c0lor": "^0.1.0",
     "canvas": "^1.2.3",
     "jcanvas": "^15.2.7",
     "jquery": "^2.1.4",
