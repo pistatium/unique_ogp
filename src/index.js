@@ -4,7 +4,7 @@ var http = require('http');
     jquery = require('jquery'),
     jsdom = require('jsdom'),
     jCanvas = require('jcanvas'),
-    articon = require('./articon.js');
+    unique_ogp = require('./unique_ogp.js');
 
 
 var getArticon = function(title, callback) {
@@ -12,9 +12,9 @@ var getArticon = function(title, callback) {
       var $ = jquery(window);
       jCanvas( $, window);  
       var canvas = $("<canvas />");
-      canvas[0].width = 512;
-      canvas[0].height = 512;
-      canvas = articon.draw(title, canvas);
+      canvas[0].width = 1200;
+      canvas[0].height = 630;
+      canvas = unique_ogp.draw(title, canvas);
       callback(canvas.get(0));
     });
 };
