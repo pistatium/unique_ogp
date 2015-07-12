@@ -36,4 +36,4 @@ http.createServer(function(request, response) {
             response.end();
         });
     });    
-}).listen(8088, '127.0.0.1');
+}).listen(8088, '0.0.0.0');

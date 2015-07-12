@@ -16,7 +16,7 @@ var getBackColor = function(h) {
 
 var getAccentColor = function(h, i) {
     i = i % 5;
-    return hsv2rgb(h, i * 3, i * 5 + 220);
+    return hsv2rgb(h, (i + 2) * 5, i * 5 + 220);
 };
 
 var createParams = function(title) {
@@ -100,6 +100,18 @@ exports.draw = function(title, canvas) {
         height: 140
     });
 
+    // Brand
+    canvas.drawText({
+        fillStyle: "#ffffff",
+        x: 1200/2,
+        y: (630 - 140)/2,
+	shadowColor: getBackColor(h),
+  	shadowBlur: 8,
+	shadowX: 5, shadowY: 5,
+        fontSize: 180,
+        fontFamily: '"Noto Sans CJK JP Black", Osaka-mono, monospace',
+        text: "Pistatium",
+    });
     // Title
     canvas.drawText({
         fillStyle: "#ffffff",
