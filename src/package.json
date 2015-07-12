@@ -9,10 +9,11 @@
   "author": "kimihiro_n",
   "license": "MIT",
   "devDependencies": {
+    "c0lor": "^0.1.0",
     "canvas": "^1.2.3",
-    "colorful": "https://github.com/minodisk/colorful/tarball/master",
     "jcanvas": "^15.2.7",
     "jquery": "^2.1.4",
-    "jsdom": "^3.1.2"
+    "jsdom": "^3.1.2",
+    "onecolor": "^2.5.0"
   }
 }
