@@ -7,7 +7,7 @@ var hsv2rgb = function(h, s, v) {
 
 var getFrontColor = function(h, i) {
     i = i % 10;
-    return hsv2rgb(h, 70 + i * 10, 150 + i);
+    return hsv2rgb(h, 200 - i * 10, 120 + i);
 };
 
 var getBackColor = function(h) {
@@ -16,7 +16,7 @@ var getBackColor = function(h) {
 
 var getAccentColor = function(h, i) {
     i = i % 5;
-    return hsv2rgb(h, i * 5, i * 5 + 220);
+    return hsv2rgb(h, i * 3, i * 5 + 220);
 };
 
 var createParams = function(title) {
@@ -41,17 +41,17 @@ exports.draw = function(title, canvas) {
     var p5 = params[4];
     var p6 = params[5];
 
-    var linear = canvas.createGradient({
+    var bright_style = canvas.createGradient({
         x1: 0, y1: 0,
-        x2: 512, y2: 300,
+        x2: 1200/2, y2: 630/3*2,
         c1: "rgba(255, 255, 255, 0.1)", s1: 0.43,
-        c2: "rgba(255, 255, 255, 0.3)", s2: 0.97
+        c2: "rgba(255, 255, 255, 0.2)", s2: 0.97
     });
 
-    // Draw the outline of a cartoon face
     canvas.clearCanvas(); 
-
     var h = p1 * 7 % 256;
+
+    // Background
     canvas.drawRect({
         fillStyle: getBackColor(h),
         x: 1200/2, y: 630/2,
@@ -60,31 +60,38 @@ exports.draw = function(title, canvas) {
         cornerRadius: 5,
         mask: true,
     });
-    var bubble_count = (p1 + p2 + p3) % 50 + 20;
+
+    // Small Bubbles
+    var bubble_count = (p1 + p2 + p3) % 50 + 80;
     for (var i =1; i < bubble_count; i++) {
-        var box_size = (i * 2 + 13) % 50;
+        var x = ((i + p1) * (i + p4)) % 1200;
+        var y = ((i + p2) * (i + p5)) % 630;
+        var box_size = (630 - y)/8 - i/10;
         canvas.drawRect({
             fillStyle: getFrontColor(h, i),
-            x: ((i + p3 + 1) * (p1 + 1) + i * i) % 1200,
-            y: ((i + p4 + 1) * (p2 + 1) + (1000- i)) % 630,
+            x: x, y: y,
             width: box_size,
             height:box_size,
-            cornerRadius: 30
+            cornerRadius: 50
         });
     }
-    var large_bubble_count = (p1 + p2) / 44 + 1;
-    for (var i =1; i <= large_bubble_count; i++) {
 
-        var box_size = (25 - i) * 18 % 200;
+    // Large Bubbles
+    var large_bubble_count = (p1 + p2 + p3) % 2 + 3;
+    for (var i =1; i <= large_bubble_count; i++) {
+        var x = (i * (300 + p4 - p5) + i * p2) % (1200 - 100) + 50;
+        var y = ((i + p4) * (i + p2)) % (630 - 50);
+        var box_size = (630 - y + 100) / 2;
         canvas.drawRect({
             fillStyle: getAccentColor(h, i),
-            x: ((i + p1) * (p1 + 1) + p3 + i * (p4 + 1)) % 1200,
-            y: ((i + p2) * (p2 + 1) + p3 + i * (p4 + 1)) % 630,
+            x:x, y:y,
             width: box_size,
             height: box_size,
             cornerRadius: 415
         });
     }
+
+    // Title background
     canvas.drawRect({
         fillStyle: "rgba(0, 0, 0, 0.8)",
         x: 1200/2,
@@ -92,6 +99,8 @@ exports.draw = function(title, canvas) {
         width: 1200,
         height: 140
     });
+
+    // Title
     canvas.drawText({
         fillStyle: "#ffffff",
         x: 1200/2,
@@ -100,20 +109,24 @@ exports.draw = function(title, canvas) {
         fontFamily: '"Noto Sans CJK JP Black", Osaka-mono, monospace',
         text: title,
     });
+
+    // hashtag
     canvas.drawText({
         fillStyle: "#ffffff",
-        x: 1200 - 50,
+        x: 1200 - 40,
         y: 630 - 10,
         fontSize: 12,
         text: "#unique_ogp",
     });
+
+    //Brightness 
     canvas.drawPath({
-        fillStyle: linear,
+        fillStyle: bright_style,
         strokeWidth: 0,
         p1: {
             type: 'line',
             x1: 0, y1: 0,
-            x2: 0, y2:500,
+            x2: 0, y2:630 - 50,
         },
         p2: {
             type: 'quadratic',
