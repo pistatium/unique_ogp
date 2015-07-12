@@ -20,6 +20,8 @@ __Require__
 cd src
 npm install
 node index.js
+
+open http://localhost:8088?title=unique_ogp
 ```
 
 --
