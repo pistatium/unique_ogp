@@ -9,13 +9,13 @@ This returns an image of the size suitable for OGP image of Facebook when you gi
 ![sample.png](https://raw.githubusercontent.com/pistatium/unique_ogp/master/resources/sample.png)
 
 > http://localhost:8088/title=Hello world!&brand=Unique OGP
-![sample.png](https://raw.githubusercontent.com/pistatium/unique_ogp/master/resources/hello_world.png)
+![hello_world.png](https://raw.githubusercontent.com/pistatium/unique_ogp/master/resources/hello_world.png)
 
 > http://localhost:8088/title=全自動でOGP画像を生成します&brand=Unique OGP
-![sample.png](https://raw.githubusercontent.com/pistatium/unique_ogp/master/resources/sample.png)
+![about_ja.png](https://raw.githubusercontent.com/pistatium/unique_ogp/master/resources/about_ja.png)
 
 > http://localhost:8088/title=http://kimihiro_n.appspot.com&brand=Pistatium
-![sample.png](https://raw.githubusercontent.com/pistatium/unique_ogp/master/resources/pistatium.png)
+![pistatium.png](https://raw.githubusercontent.com/pistatium/unique_ogp/master/resources/pistatium.png)
 
 ## Setup
 
