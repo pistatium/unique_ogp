@@ -15,13 +15,18 @@ __Require__
 * node.js
 * npm
 * cairo
+* Noto Sans CJK JP(Font)
 
 ```
 cd src
 npm install
+npm run demo  #for demo.html
 node index.js
 
+# Try api
 open http://localhost:8088?title=unique_ogp
+# Or, try demo page
+open demo.html
 ```
 
 --

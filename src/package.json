@@ -1,17 +1,18 @@
 {
   "name": "node_articon",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "demo": "browserify demo.js -o bundle.js"
   },
   "author": "kimihiro_n",
   "license": "MIT",
   "devDependencies": {
     "canvas": "^1.2.3",
     "jcanvas": "^15.2.7",
-    "jquery": "^2.1.4",
+    "jquery": "^1.11.3",
     "jsdom": "^3.1.2",
     "onecolor": "^2.5.0"
   }
