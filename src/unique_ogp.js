@@ -30,9 +30,9 @@ var createParams = function(title) {
     return [p1, p2, p3, p4, p5, p6];
 };
 
-exports.draw = function(title, canvas) {
+exports.draw = function(canvas, title, brand) {
     title = title || "";
-    console.log(title);
+    brand = brand || "";
     params = createParams(title); 
     var p1 = params[0];
     var p2 = params[1];
@@ -109,8 +109,8 @@ exports.draw = function(title, canvas) {
   	shadowBlur: 8,
 	shadowX: 5, shadowY: 5,
         fontSize: 180,
-        fontFamily: '"Noto Sans CJK JP Black", Osaka-mono, monospace',
-        text: "Pistatium",
+        fontFamily: '"Noto Sans CJK JP Black"',
+        text: brand,
     });
     // Title
     canvas.drawText({
@@ -118,7 +118,7 @@ exports.draw = function(title, canvas) {
         x: 1200/2,
         y: 630 - 70,
         fontSize: 1200 / (title.length + 10),
-        fontFamily: '"Noto Sans CJK JP Black", Osaka-mono, monospace',
+        fontFamily: '"Noto Sans CJK JP Black"',
         text: title,
     });
 
@@ -128,6 +128,7 @@ exports.draw = function(title, canvas) {
         x: 1200 - 40,
         y: 630 - 10,
         fontSize: 12,
+        fontFamily: '"Noto Sans CJK JP Black"',
         text: "#unique_ogp",
     });
 
