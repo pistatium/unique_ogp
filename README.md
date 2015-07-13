@@ -10,7 +10,7 @@ This returns an image of the size suitable for OGP image of Facebook when you gi
 
 
 > http://localhost:8088/title=Hello world!&brand=Unique OGP
-![with_ogp.png](https://raw.githubusercontent.com/pistatium/unique_ogp/master/resources/with_ogp.png)
+![with_brand.png](https://raw.githubusercontent.com/pistatium/unique_ogp/master/resources/with_brand.png)
 
 
 > http://localhost:8088/title=全自動でOGP画像を生成します&brand=Unique OGP
