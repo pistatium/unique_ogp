@@ -25,8 +25,10 @@ This returns an image of the size suitable for OGP image of Facebook when you gi
 __Require__
 * node.js
 * npm
-* cairo
+* node-canvas
+    * https://github.com/Automattic/node-canvas/wiki
 * Noto Sans CJK JP(Font)
+    * http://www.google.com/get/noto/#sans-jpan
 
 ```
 cd src
