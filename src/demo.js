@@ -7,8 +7,17 @@ $(function() {
       canvas.width(1200);
       canvas.height(630);
       canvas = unique_ogp.draw(canvas, title, brand);
-      return canvas.get(0);
+      return canvas;
     };
-    canvas = getArticon("test", "fuga");
-    $("#canvas").append(canvas);
+    var updateArticon = function() {
+        var title = $("#form_title").val();
+        var brand = $("#form_brand").val();
+        var canvas = getArticon(title,  brand);
+        var image = $("<img />").attr("src", canvas.getCanvasImage());
+        $("#canvas").empty().append(image);
+    };
+
+    updateArticon();
+    $("#form_title").change(updateArticon);
+    $("#form_brand").change(updateArticon);
 });

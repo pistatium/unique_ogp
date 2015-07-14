@@ -1,9 +1,44 @@
 <!doctype html>
 <meta charset="utf-8">
 
+<style>
+    @import url(http://fonts.googleapis.com/earlyaccess/notosansjapanese.css);
+    body {
+        text-align:center;
+    }
+    fieldset {
+        border:none;
+    }
+    label {
+        width:100px;
+        display: inline-block;
+    }
+    #canvas img {
+        max-width: 95%;
+        padding: 0 auto;
+    }
+</style>
+
 <!-- FIXME: browserify -->
 <script src="node_modules/jquery/dist/jquery.min.js"></script>
 <script src="node_modules/jcanvas/jcanvas.min.js"></script>
 
 <script src="bundle.js"></script>
+
+<h1>Unique OGP Demo</h1>
+
+<h2>Input</h2>
+
+<form>
+    <fieldset>
+        <label>Title:</label>
+        <input type="text" id="form_title" value="Hello World!!">
+    </fieldset>
+    <fieldset>
+        <label>Brand:</label>
+        <input type="text" id="form_brand" value="Unique OGP">
+    </fieldset>
+</form>
+
+<h2>Result</h2>
 <div id="canvas"></div>
