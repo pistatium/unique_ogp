@@ -1,10 +1,21 @@
 <!doctype html>
 <meta charset="utf-8">
-
+<title>Unique OGP Demo</title>
 <style>
     @import url(http://fonts.googleapis.com/earlyaccess/notosansjapanese.css);
     body {
         text-align:center;
+        background: #e9eaed;
+        font-size: 14px;
+    }
+    h1, h2 {
+        color: #3b5998;
+        font-weight:bold;
+        font-family: 'Noto Sans CJK JP Black', 'Noto Sans Japanese';
+    }
+    p {
+        margin: 10px 30px;
+        text-align: left;
     }
     fieldset {
         border:none;
@@ -13,32 +24,94 @@
         width:100px;
         display: inline-block;
     }
+    .wrapper {
+        margin: 10px auto;
+        padding: 5px;
+        background: #fff;
+        width: 496px;
+        border: 1px solid;
+        border-color: #e5e6e9 #dfe0e4 #d0d1d5;
+        border-radius: 3px;
+    }
+    .fb_box {
+        width: 470px;
+        background: #ffffff;
+        margin: 10px auto;
+        padding: 0px;
+        border-color: #e9eaed #e9eaed #d1d1d1;
+        box-shadow: 0 0 0 1.5px rgba(0, 0, 0, .1) inset, 0 1px 1px rgba(0, 0, 0, .05);
+    }
+    .fb_meta {
+        color: #333;
+        font-size: 12px;
+        line-height: 14px;
+        padding: 10px; 
+        text-align: left;
+        font-family: helvetica, arial, "hiragino kaku gothic pro",meiryo,"ms pgothic",sans-serif;
+    }
+    .fb_title {
+        color: #141823;
+        font-size: 18px;
+        font-weight: 500;
+        line-height: 22px;
+    }
+    .fb_brand {
+        padding-top: 9px;
+        position: relative;
+        font-size: 10px;
+        color: #9197a3;
+        font-size: 11px;
+        line-height: 11px;
+        text-transform: uppercase;
+    }
+    .fb_description {
+        line-height: 16px;
+        margin: 5px 0px;
+    }
     #canvas img {
-        max-width: 95%;
+        width: 100%;
         padding: 0 auto;
     }
+
 </style>
 
-<!-- FIXME: browserify -->
-<script src="node_modules/jquery/dist/jquery.min.js"></script>
-<script src="node_modules/jcanvas/jcanvas.min.js"></script>
-
+<script src="jquery.min.js"></script>
+<script src="jcanvas.min.js"></script>
 <script src="bundle.js"></script>
+<div class="wrapper">
+    <h1>Unique OGP Demo</h1>
+    <p>
+        UniqueOGP automatically produces inherent OGP image from the character string of the title.
+    </p>
 
-<h1>Unique OGP Demo</h1>
+    <h2>Source(Github)</h2>
+    <a href="https://github.com/pistatium/unique_ogp">https://github.com/pistatium/unique_ogp</a>
 
-<h2>Input</h2>
+    <h2>Demo</h2>
 
-<form>
-    <fieldset>
-        <label>Title:</label>
-        <input type="text" id="form_title" value="Hello World!!">
-    </fieldset>
-    <fieldset>
-        <label>Brand:</label>
-        <input type="text" id="form_brand" value="Unique OGP">
-    </fieldset>
-</form>
+    <div class="fb_box">
+        <div class="fb_image" id="canvas"></div>
+        <div class="fb_meta">
+            <div class="fb_title" id="demo_title"></div>
+            <div class="fb_description">
+    UniqueOGP automatically produces inherent OGP image from the character string of the title...
+            </div>
+            <div class="fb_brand" id="demo_brand">Unique OGP</div>
+        </div>
+    </div>
 
-<h2>Result</h2>
-<div id="canvas"></div>
+    <form>
+        <fieldset>
+            <label>Title:</label>
+            <input type="text" id="form_title" value="Hello World!!">
+        </fieldset>
+        <fieldset>
+            <label>Brand:</label>
+            <input type="text" id="form_brand" value="Unique OGP">
+        </fieldset>
+    </form>
+</div>
+
+<footer>
+    Copyright(c) 2015 <a href="https://github.com/pistatium">pistatium</a>.
+</footer>

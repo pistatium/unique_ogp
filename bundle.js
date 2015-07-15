@@ -16,6 +16,8 @@ $(function() {
         var canvas = getArticon(title,  brand);
         var image = $("<img />").attr("src", canvas.getCanvasImage());
         $("#canvas").empty().append(image);
+        $("#demo_title").text(title);
+        $("#demo_brand").text(brand);
     };
 
     updateArticon();
@@ -18647,7 +18649,7 @@ exports.draw = function(canvas, title, brand) {
         x: 1200/2,
         y: 630 - 70,
         fontSize: (1200 - 50) / (charcount(title)/2 + 10),
-        fontFamily: "'Noto Sans CJK JP Black', 'Noto Sans Japanese'",
+        fontFamily: "'Noto Sans Japanese'",
         fontWeight: 900,
         text: title,
     });
@@ -18658,7 +18660,7 @@ exports.draw = function(canvas, title, brand) {
         x: 1200 - 50,
         y: 630 - 10,
         fontSize: 12,
-        fontFamily: "'Noto Sans CJK JP Black', 'Noto Sans Japanese'",
+        fontFamily: "'Noto Sans Japanese'",
         text: "#unique_ogp",
     });
 

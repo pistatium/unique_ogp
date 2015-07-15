@@ -15,6 +15,8 @@ $(function() {
         var canvas = getArticon(title,  brand);
         var image = $("<img />").attr("src", canvas.getCanvasImage());
         $("#canvas").empty().append(image);
+        $("#demo_title").text(title);
+        $("#demo_brand").text(brand);
     };
 
     updateArticon();
