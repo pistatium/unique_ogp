@@ -25,7 +25,7 @@ $(function() {
     $("#form_brand").change(updateArticon);
 });
 
-},{"./unique_ogp.js":169}],2:[function(require,module,exports){
+},{"./unique_ogp.js":4}],2:[function(require,module,exports){
 var crypto = require('crypto');
 
 exports.md5 = function(src) {
@@ -34,9 +34,963 @@ exports.md5 = function(src) {
     return md5.digest('hex');
 };
 
-},{"crypto":8}],3:[function(require,module,exports){
+},{"crypto":10}],3:[function(require,module,exports){
+/*jshint evil:true, onevar:false*/
+/*global define*/
+var installedColorSpaces = [],
+    namedColors = {},
+    undef = function (obj) {
+        return typeof obj === 'undefined';
+    },
+    channelRegExp = /\s*(\.\d+|\d+(?:\.\d+)?)(%)?\s*/,
+    percentageChannelRegExp = /\s*(\.\d+|100|\d?\d(?:\.\d+)?)%\s*/,
+    alphaChannelRegExp = /\s*(\.\d+|\d+(?:\.\d+)?)\s*/,
+    cssColorRegExp = new RegExp(
+                         "^(rgb|hsl|hsv)a?" +
+                         "\\(" +
+                             channelRegExp.source + "," +
+                             channelRegExp.source + "," +
+                             channelRegExp.source +
+                             "(?:," + alphaChannelRegExp.source + ")?" +
+                         "\\)$", "i");
+
+function ONECOLOR(obj) {
+    if (Object.prototype.toString.apply(obj) === '[object Array]') {
+        if (typeof obj[0] === 'string' && typeof ONECOLOR[obj[0]] === 'function') {
+            // Assumed array from .toJSON()
+            return new ONECOLOR[obj[0]](obj.slice(1, obj.length));
+        } else if (obj.length === 4) {
+            // Assumed 4 element int RGB array from canvas with all channels [0;255]
+            return new ONECOLOR.RGB(obj[0] / 255, obj[1] / 255, obj[2] / 255, obj[3] / 255);
+        }
+    } else if (typeof obj === 'string') {
+        var lowerCased = obj.toLowerCase();
+        if (namedColors[lowerCased]) {
+            obj = '#' + namedColors[lowerCased];
+        }
+        if (lowerCased === 'transparent') {
+            obj = 'rgba(0,0,0,0)';
+        }
+        // Test for CSS rgb(....) string
+        var matchCssSyntax = obj.match(cssColorRegExp);
+        if (matchCssSyntax) {
+            var colorSpaceName = matchCssSyntax[1].toUpperCase(),
+                alpha = undef(matchCssSyntax[8]) ? matchCssSyntax[8] : parseFloat(matchCssSyntax[8]),
+                hasHue = colorSpaceName[0] === 'H',
+                firstChannelDivisor = matchCssSyntax[3] ? 100 : (hasHue ? 360 : 255),
+                secondChannelDivisor = (matchCssSyntax[5] || hasHue) ? 100 : 255,
+                thirdChannelDivisor = (matchCssSyntax[7] || hasHue) ? 100 : 255;
+            if (undef(ONECOLOR[colorSpaceName])) {
+                throw new Error("one.color." + colorSpaceName + " is not installed.");
+            }
+            return new ONECOLOR[colorSpaceName](
+                parseFloat(matchCssSyntax[2]) / firstChannelDivisor,
+                parseFloat(matchCssSyntax[4]) / secondChannelDivisor,
+                parseFloat(matchCssSyntax[6]) / thirdChannelDivisor,
+                alpha
+            );
+        }
+        // Assume hex syntax
+        if (obj.length < 6) {
+            // Allow CSS shorthand
+            obj = obj.replace(/^#?([0-9a-f])([0-9a-f])([0-9a-f])$/i, '$1$1$2$2$3$3');
+        }
+        // Split obj into red, green, and blue components
+        var hexMatch = obj.match(/^#?([0-9a-f][0-9a-f])([0-9a-f][0-9a-f])([0-9a-f][0-9a-f])$/i);
+        if (hexMatch) {
+            return new ONECOLOR.RGB(
+                parseInt(hexMatch[1], 16) / 255,
+                parseInt(hexMatch[2], 16) / 255,
+                parseInt(hexMatch[3], 16) / 255
+            );
+        }
+
+        // No match so far. Lets try the less likely ones
+        if (ONECOLOR.CMYK) {
+            var cmykMatch = obj.match(new RegExp(
+                             "^cmyk" +
+                             "\\(" +
+                                 percentageChannelRegExp.source + "," +
+                                 percentageChannelRegExp.source + "," +
+                                 percentageChannelRegExp.source + "," +
+                                 percentageChannelRegExp.source +
+                             "\\)$", "i"));
+            if (cmykMatch) {
+                return new ONECOLOR.CMYK(
+                    parseFloat(cmykMatch[1]) / 100,
+                    parseFloat(cmykMatch[2]) / 100,
+                    parseFloat(cmykMatch[3]) / 100,
+                    parseFloat(cmykMatch[4]) / 100
+                );
+            }
+        }
+    } else if (typeof obj === 'object' && obj.isColor) {
+        return obj;
+    }
+    return false;
+}
+
+function installColorSpace(colorSpaceName, propertyNames, config) {
+    ONECOLOR[colorSpaceName] = new Function(propertyNames.join(","),
+        // Allow passing an array to the constructor:
+        "if (Object.prototype.toString.apply(" + propertyNames[0] + ") === '[object Array]') {" +
+            propertyNames.map(function (propertyName, i) {
+                return propertyName + "=" + propertyNames[0] + "[" + i + "];";
+            }).reverse().join("") +
+        "}" +
+        "if (" + propertyNames.filter(function (propertyName) {
+            return propertyName !== 'alpha';
+        }).map(function (propertyName) {
+            return "isNaN(" + propertyName + ")";
+        }).join("||") + "){" + "throw new Error(\"[" + colorSpaceName + "]: Invalid color: (\"+" + propertyNames.join("+\",\"+") + "+\")\");}" +
+        propertyNames.map(function (propertyName) {
+            if (propertyName === 'hue') {
+                return "this._hue=hue<0?hue-Math.floor(hue):hue%1"; // Wrap
+            } else if (propertyName === 'alpha') {
+                return "this._alpha=(isNaN(alpha)||alpha>1)?1:(alpha<0?0:alpha);";
+            } else {
+                return "this._" + propertyName + "=" + propertyName + "<0?0:(" + propertyName + ">1?1:" + propertyName + ")";
+            }
+        }).join(";") + ";"
+    );
+    ONECOLOR[colorSpaceName].propertyNames = propertyNames;
+
+    var prototype = ONECOLOR[colorSpaceName].prototype;
+
+    ['valueOf', 'hex', 'hexa', 'css', 'cssa'].forEach(function (methodName) {
+        prototype[methodName] = prototype[methodName] || (colorSpaceName === 'RGB' ? prototype.hex : new Function("return this.rgb()." + methodName + "();"));
+    });
+
+    prototype.isColor = true;
+
+    prototype.equals = function (otherColor, epsilon) {
+        if (undef(epsilon)) {
+            epsilon = 1e-10;
+        }
+
+        otherColor = otherColor[colorSpaceName.toLowerCase()]();
+
+        for (var i = 0; i < propertyNames.length; i = i + 1) {
+            if (Math.abs(this['_' + propertyNames[i]] - otherColor['_' + propertyNames[i]]) > epsilon) {
+                return false;
+            }
+        }
+
+        return true;
+    };
+
+    prototype.toJSON = new Function(
+        "return ['" + colorSpaceName + "', " +
+            propertyNames.map(function (propertyName) {
+                return "this._" + propertyName;
+            }, this).join(", ") +
+        "];"
+    );
+
+    for (var propertyName in config) {
+        if (config.hasOwnProperty(propertyName)) {
+            var matchFromColorSpace = propertyName.match(/^from(.*)$/);
+            if (matchFromColorSpace) {
+                ONECOLOR[matchFromColorSpace[1].toUpperCase()].prototype[colorSpaceName.toLowerCase()] = config[propertyName];
+            } else {
+                prototype[propertyName] = config[propertyName];
+            }
+        }
+    }
+
+    // It is pretty easy to implement the conversion to the same color space:
+    prototype[colorSpaceName.toLowerCase()] = function () {
+        return this;
+    };
+    prototype.toString = new Function("return \"[one.color." + colorSpaceName + ":\"+" + propertyNames.map(function (propertyName, i) {
+        return "\" " + propertyNames[i] + "=\"+this._" + propertyName;
+    }).join("+") + "+\"]\";");
+
+    // Generate getters and setters
+    propertyNames.forEach(function (propertyName, i) {
+        prototype[propertyName] = prototype[propertyName === 'black' ? 'k' : propertyName[0]] = new Function("value", "isDelta",
+            // Simple getter mode: color.red()
+            "if (typeof value === 'undefined') {" +
+                "return this._" + propertyName + ";" +
+            "}" +
+            // Adjuster: color.red(+.2, true)
+            "if (isDelta) {" +
+                "return new this.constructor(" + propertyNames.map(function (otherPropertyName, i) {
+                    return "this._" + otherPropertyName + (propertyName === otherPropertyName ? "+value" : "");
+                }).join(", ") + ");" +
+            "}" +
+            // Setter: color.red(.2);
+            "return new this.constructor(" + propertyNames.map(function (otherPropertyName, i) {
+                return propertyName === otherPropertyName ? "value" : "this._" + otherPropertyName;
+            }).join(", ") + ");");
+    });
+
+    function installForeignMethods(targetColorSpaceName, sourceColorSpaceName) {
+        var obj = {};
+        obj[sourceColorSpaceName.toLowerCase()] = new Function("return this.rgb()." + sourceColorSpaceName.toLowerCase() + "();"); // Fallback
+        ONECOLOR[sourceColorSpaceName].propertyNames.forEach(function (propertyName, i) {
+            obj[propertyName] = obj[propertyName === 'black' ? 'k' : propertyName[0]] = new Function("value", "isDelta", "return this." + sourceColorSpaceName.toLowerCase() + "()." + propertyName + "(value, isDelta);");
+        });
+        for (var prop in obj) {
+            if (obj.hasOwnProperty(prop) && ONECOLOR[targetColorSpaceName].prototype[prop] === undefined) {
+                ONECOLOR[targetColorSpaceName].prototype[prop] = obj[prop];
+            }
+        }
+    }
+
+    installedColorSpaces.forEach(function (otherColorSpaceName) {
+        installForeignMethods(colorSpaceName, otherColorSpaceName);
+        installForeignMethods(otherColorSpaceName, colorSpaceName);
+    });
+
+    installedColorSpaces.push(colorSpaceName);
+}
+
+ONECOLOR.installMethod = function (name, fn) {
+    installedColorSpaces.forEach(function (colorSpace) {
+        ONECOLOR[colorSpace].prototype[name] = fn;
+    });
+};
+
+installColorSpace('RGB', ['red', 'green', 'blue', 'alpha'], {
+    hex: function () {
+        var hexString = (Math.round(255 * this._red) * 0x10000 + Math.round(255 * this._green) * 0x100 + Math.round(255 * this._blue)).toString(16);
+        return '#' + ('00000'.substr(0, 6 - hexString.length)) + hexString;
+    },
+
+    hexa: function () {
+        var alphaString = Math.round(this._alpha * 255).toString(16);
+        return '#' + '00'.substr(0, 2 - alphaString.length) + alphaString + this.hex().substr(1, 6);
+    },
+
+    css: function () {
+        return "rgb(" + Math.round(255 * this._red) + "," + Math.round(255 * this._green) + "," + Math.round(255 * this._blue) + ")";
+    },
+
+    cssa: function () {
+        return "rgba(" + Math.round(255 * this._red) + "," + Math.round(255 * this._green) + "," + Math.round(255 * this._blue) + "," + this._alpha + ")";
+    }
+});
+if (typeof define === 'function' && !undef(define.amd)) {
+    define(function () {
+        return ONECOLOR;
+    });
+} else if (typeof exports === 'object') {
+    // Node module export
+    module.exports = ONECOLOR;
+} else {
+    one = window.one || {};
+    one.color = ONECOLOR;
+}
+
+if (typeof jQuery !== 'undefined' && undef(jQuery.color)) {
+    jQuery.color = ONECOLOR;
+}
+
+/*global namedColors*/
+namedColors = {
+    aliceblue: 'f0f8ff',
+    antiquewhite: 'faebd7',
+    aqua: '0ff',
+    aquamarine: '7fffd4',
+    azure: 'f0ffff',
+    beige: 'f5f5dc',
+    bisque: 'ffe4c4',
+    black: '000',
+    blanchedalmond: 'ffebcd',
+    blue: '00f',
+    blueviolet: '8a2be2',
+    brown: 'a52a2a',
+    burlywood: 'deb887',
+    cadetblue: '5f9ea0',
+    chartreuse: '7fff00',
+    chocolate: 'd2691e',
+    coral: 'ff7f50',
+    cornflowerblue: '6495ed',
+    cornsilk: 'fff8dc',
+    crimson: 'dc143c',
+    cyan: '0ff',
+    darkblue: '00008b',
+    darkcyan: '008b8b',
+    darkgoldenrod: 'b8860b',
+    darkgray: 'a9a9a9',
+    darkgrey: 'a9a9a9',
+    darkgreen: '006400',
+    darkkhaki: 'bdb76b',
+    darkmagenta: '8b008b',
+    darkolivegreen: '556b2f',
+    darkorange: 'ff8c00',
+    darkorchid: '9932cc',
+    darkred: '8b0000',
+    darksalmon: 'e9967a',
+    darkseagreen: '8fbc8f',
+    darkslateblue: '483d8b',
+    darkslategray: '2f4f4f',
+    darkslategrey: '2f4f4f',
+    darkturquoise: '00ced1',
+    darkviolet: '9400d3',
+    deeppink: 'ff1493',
+    deepskyblue: '00bfff',
+    dimgray: '696969',
+    dimgrey: '696969',
+    dodgerblue: '1e90ff',
+    firebrick: 'b22222',
+    floralwhite: 'fffaf0',
+    forestgreen: '228b22',
+    fuchsia: 'f0f',
+    gainsboro: 'dcdcdc',
+    ghostwhite: 'f8f8ff',
+    gold: 'ffd700',
+    goldenrod: 'daa520',
+    gray: '808080',
+    grey: '808080',
+    green: '008000',
+    greenyellow: 'adff2f',
+    honeydew: 'f0fff0',
+    hotpink: 'ff69b4',
+    indianred: 'cd5c5c',
+    indigo: '4b0082',
+    ivory: 'fffff0',
+    khaki: 'f0e68c',
+    lavender: 'e6e6fa',
+    lavenderblush: 'fff0f5',
+    lawngreen: '7cfc00',
+    lemonchiffon: 'fffacd',
+    lightblue: 'add8e6',
+    lightcoral: 'f08080',
+    lightcyan: 'e0ffff',
+    lightgoldenrodyellow: 'fafad2',
+    lightgray: 'd3d3d3',
+    lightgrey: 'd3d3d3',
+    lightgreen: '90ee90',
+    lightpink: 'ffb6c1',
+    lightsalmon: 'ffa07a',
+    lightseagreen: '20b2aa',
+    lightskyblue: '87cefa',
+    lightslategray: '789',
+    lightslategrey: '789',
+    lightsteelblue: 'b0c4de',
+    lightyellow: 'ffffe0',
+    lime: '0f0',
+    limegreen: '32cd32',
+    linen: 'faf0e6',
+    magenta: 'f0f',
+    maroon: '800000',
+    mediumaquamarine: '66cdaa',
+    mediumblue: '0000cd',
+    mediumorchid: 'ba55d3',
+    mediumpurple: '9370d8',
+    mediumseagreen: '3cb371',
+    mediumslateblue: '7b68ee',
+    mediumspringgreen: '00fa9a',
+    mediumturquoise: '48d1cc',
+    mediumvioletred: 'c71585',
+    midnightblue: '191970',
+    mintcream: 'f5fffa',
+    mistyrose: 'ffe4e1',
+    moccasin: 'ffe4b5',
+    navajowhite: 'ffdead',
+    navy: '000080',
+    oldlace: 'fdf5e6',
+    olive: '808000',
+    olivedrab: '6b8e23',
+    orange: 'ffa500',
+    orangered: 'ff4500',
+    orchid: 'da70d6',
+    palegoldenrod: 'eee8aa',
+    palegreen: '98fb98',
+    paleturquoise: 'afeeee',
+    palevioletred: 'd87093',
+    papayawhip: 'ffefd5',
+    peachpuff: 'ffdab9',
+    peru: 'cd853f',
+    pink: 'ffc0cb',
+    plum: 'dda0dd',
+    powderblue: 'b0e0e6',
+    purple: '800080',
+    rebeccapurple: '639',
+    red: 'f00',
+    rosybrown: 'bc8f8f',
+    royalblue: '4169e1',
+    saddlebrown: '8b4513',
+    salmon: 'fa8072',
+    sandybrown: 'f4a460',
+    seagreen: '2e8b57',
+    seashell: 'fff5ee',
+    sienna: 'a0522d',
+    silver: 'c0c0c0',
+    skyblue: '87ceeb',
+    slateblue: '6a5acd',
+    slategray: '708090',
+    slategrey: '708090',
+    snow: 'fffafa',
+    springgreen: '00ff7f',
+    steelblue: '4682b4',
+    tan: 'd2b48c',
+    teal: '008080',
+    thistle: 'd8bfd8',
+    tomato: 'ff6347',
+    turquoise: '40e0d0',
+    violet: 'ee82ee',
+    wheat: 'f5deb3',
+    white: 'fff',
+    whitesmoke: 'f5f5f5',
+    yellow: 'ff0',
+    yellowgreen: '9acd32'
+};
+
+/*global INCLUDE, installColorSpace, ONECOLOR*/
+
+installColorSpace('XYZ', ['x', 'y', 'z', 'alpha'], {
+    fromRgb: function () {
+        // http://www.easyrgb.com/index.php?X=MATH&H=02#text2
+        var convert = function (channel) {
+                return channel > 0.04045 ?
+                    Math.pow((channel + 0.055) / 1.055, 2.4) :
+                    channel / 12.92;
+            },
+            r = convert(this._red),
+            g = convert(this._green),
+            b = convert(this._blue);
+
+        // Reference white point sRGB D65:
+        // http://www.brucelindbloom.com/index.html?Eqn_RGB_XYZ_Matrix.html
+        return new ONECOLOR.XYZ(
+            r * 0.4124564 + g * 0.3575761 + b * 0.1804375,
+            r * 0.2126729 + g * 0.7151522 + b * 0.0721750,
+            r * 0.0193339 + g * 0.1191920 + b * 0.9503041,
+            this._alpha
+        );
+    },
+
+    rgb: function () {
+        // http://www.easyrgb.com/index.php?X=MATH&H=01#text1
+        var x = this._x,
+            y = this._y,
+            z = this._z,
+            convert = function (channel) {
+                return channel > 0.0031308 ?
+                    1.055 * Math.pow(channel, 1 / 2.4) - 0.055 :
+                    12.92 * channel;
+            };
+
+        // Reference white point sRGB D65:
+        // http://www.brucelindbloom.com/index.html?Eqn_RGB_XYZ_Matrix.html
+        return new ONECOLOR.RGB(
+            convert(x *  3.2404542 + y * -1.5371385 + z * -0.4985314),
+            convert(x * -0.9692660 + y *  1.8760108 + z *  0.0415560),
+            convert(x *  0.0556434 + y * -0.2040259 + z *  1.0572252),
+            this._alpha
+        );
+    },
+
+    lab: function () {
+        // http://www.easyrgb.com/index.php?X=MATH&H=07#text7
+        var convert = function (channel) {
+                return channel > 0.008856 ?
+                    Math.pow(channel, 1 / 3) :
+                    7.787037 * channel + 4 / 29;
+            },
+            x = convert(this._x /  95.047),
+            y = convert(this._y / 100.000),
+            z = convert(this._z / 108.883);
+
+        return new ONECOLOR.LAB(
+            (116 * y) - 16,
+            500 * (x - y),
+            200 * (y - z),
+            this._alpha
+        );
+    }
+});
+
+/*global INCLUDE, installColorSpace, ONECOLOR*/
+
+installColorSpace('LAB', ['l', 'a', 'b', 'alpha'], {
+    fromRgb: function () {
+        return this.xyz().lab();
+    },
+
+    rgb: function () {
+        return this.xyz().rgb();
+    },
+
+    xyz: function () {
+        // http://www.easyrgb.com/index.php?X=MATH&H=08#text8
+        var convert = function (channel) {
+                var pow = Math.pow(channel, 3);
+                return pow > 0.008856 ?
+                    pow :
+                    (channel - 16 / 116) / 7.87;
+            },
+            y = (this._l + 16) / 116,
+            x = this._a / 500 + y,
+            z = y - this._b / 200;
+
+        return new ONECOLOR.XYZ(
+            convert(x) *  95.047,
+            convert(y) * 100.000,
+            convert(z) * 108.883,
+            this._alpha
+        );
+    }
+});
+
+/*global one*/
+
+installColorSpace('HSV', ['hue', 'saturation', 'value', 'alpha'], {
+    rgb: function () {
+        var hue = this._hue,
+            saturation = this._saturation,
+            value = this._value,
+            i = Math.min(5, Math.floor(hue * 6)),
+            f = hue * 6 - i,
+            p = value * (1 - saturation),
+            q = value * (1 - f * saturation),
+            t = value * (1 - (1 - f) * saturation),
+            red,
+            green,
+            blue;
+        switch (i) {
+        case 0:
+            red = value;
+            green = t;
+            blue = p;
+            break;
+        case 1:
+            red = q;
+            green = value;
+            blue = p;
+            break;
+        case 2:
+            red = p;
+            green = value;
+            blue = t;
+            break;
+        case 3:
+            red = p;
+            green = q;
+            blue = value;
+            break;
+        case 4:
+            red = t;
+            green = p;
+            blue = value;
+            break;
+        case 5:
+            red = value;
+            green = p;
+            blue = q;
+            break;
+        }
+        return new ONECOLOR.RGB(red, green, blue, this._alpha);
+    },
+
+    hsl: function () {
+        var l = (2 - this._saturation) * this._value,
+            sv = this._saturation * this._value,
+            svDivisor = l <= 1 ? l : (2 - l),
+            saturation;
+
+        // Avoid division by zero when lightness approaches zero:
+        if (svDivisor < 1e-9) {
+            saturation = 0;
+        } else {
+            saturation = sv / svDivisor;
+        }
+        return new ONECOLOR.HSL(this._hue, saturation, l / 2, this._alpha);
+    },
+
+    fromRgb: function () { // Becomes one.color.RGB.prototype.hsv
+        var red = this._red,
+            green = this._green,
+            blue = this._blue,
+            max = Math.max(red, green, blue),
+            min = Math.min(red, green, blue),
+            delta = max - min,
+            hue,
+            saturation = (max === 0) ? 0 : (delta / max),
+            value = max;
+        if (delta === 0) {
+            hue = 0;
+        } else {
+            switch (max) {
+            case red:
+                hue = (green - blue) / delta / 6 + (green < blue ? 1 : 0);
+                break;
+            case green:
+                hue = (blue - red) / delta / 6 + 1 / 3;
+                break;
+            case blue:
+                hue = (red - green) / delta / 6 + 2 / 3;
+                break;
+            }
+        }
+        return new ONECOLOR.HSV(hue, saturation, value, this._alpha);
+    }
+});
+
+/*global one*/
+
+
+installColorSpace('HSL', ['hue', 'saturation', 'lightness', 'alpha'], {
+    hsv: function () {
+        // Algorithm adapted from http://wiki.secondlife.com/wiki/Color_conversion_scripts
+        var l = this._lightness * 2,
+            s = this._saturation * ((l <= 1) ? l : 2 - l),
+            saturation;
+
+        // Avoid division by zero when l + s is very small (approaching black):
+        if (l + s < 1e-9) {
+            saturation = 0;
+        } else {
+            saturation = (2 * s) / (l + s);
+        }
+
+        return new ONECOLOR.HSV(this._hue, saturation, (l + s) / 2, this._alpha);
+    },
+
+    rgb: function () {
+        return this.hsv().rgb();
+    },
+
+    fromRgb: function () { // Becomes one.color.RGB.prototype.hsv
+        return this.hsv().hsl();
+    }
+});
+
+/*global one*/
+
+installColorSpace('CMYK', ['cyan', 'magenta', 'yellow', 'black', 'alpha'], {
+    rgb: function () {
+        return new ONECOLOR.RGB((1 - this._cyan * (1 - this._black) - this._black),
+                                 (1 - this._magenta * (1 - this._black) - this._black),
+                                 (1 - this._yellow * (1 - this._black) - this._black),
+                                 this._alpha);
+    },
+
+    fromRgb: function () { // Becomes one.color.RGB.prototype.cmyk
+        // Adapted from http://www.javascripter.net/faq/rgb2cmyk.htm
+        var red = this._red,
+            green = this._green,
+            blue = this._blue,
+            cyan = 1 - red,
+            magenta = 1 - green,
+            yellow = 1 - blue,
+            black = 1;
+        if (red || green || blue) {
+            black = Math.min(cyan, Math.min(magenta, yellow));
+            cyan = (cyan - black) / (1 - black);
+            magenta = (magenta - black) / (1 - black);
+            yellow = (yellow - black) / (1 - black);
+        } else {
+            black = 1;
+        }
+        return new ONECOLOR.CMYK(cyan, magenta, yellow, black, this._alpha);
+    }
+});
+
+ONECOLOR.installMethod('clearer', function (amount) {
+    return this.alpha(isNaN(amount) ? -0.1 : -amount, true);
+});
+
+
+ONECOLOR.installMethod('darken', function (amount) {
+    return this.lightness(isNaN(amount) ? -0.1 : -amount, true);
+});
+
+
+ONECOLOR.installMethod('desaturate', function (amount) {
+    return this.saturation(isNaN(amount) ? -0.1 : -amount, true);
+});
+
+function gs () {
+    var rgb = this.rgb(),
+        val = rgb._red * 0.3 + rgb._green * 0.59 + rgb._blue * 0.11;
+
+    return new ONECOLOR.RGB(val, val, val, this._alpha);
+};
+
+ONECOLOR.installMethod('greyscale', gs);
+ONECOLOR.installMethod('grayscale', gs);
+
+
+ONECOLOR.installMethod('lighten', function (amount) {
+    return this.lightness(isNaN(amount) ? 0.1 : amount, true);
+});
+
+ONECOLOR.installMethod('mix', function (otherColor, weight) {
+    otherColor = ONECOLOR(otherColor).rgb();
+    weight = 1 - (isNaN(weight) ? 0.5 : weight);
+
+    var w = weight * 2 - 1,
+        a = this._alpha - otherColor._alpha,
+        weight1 = (((w * a === -1) ? w : (w + a) / (1 + w * a)) + 1) / 2,
+        weight2 = 1 - weight1,
+        rgb = this.rgb();
+
+    return new ONECOLOR.RGB(
+        rgb._red * weight1 + otherColor._red * weight2,
+        rgb._green * weight1 + otherColor._green * weight2,
+        rgb._blue * weight1 + otherColor._blue * weight2,
+        rgb._alpha * weight + otherColor._alpha * (1 - weight)
+    );
+});
+
+ONECOLOR.installMethod('negate', function () {
+    var rgb = this.rgb();
+    return new ONECOLOR.RGB(1 - rgb._red, 1 - rgb._green, 1 - rgb._blue, this._alpha);
+});
+
+ONECOLOR.installMethod('opaquer', function (amount) {
+    return this.alpha(isNaN(amount) ? 0.1 : amount, true);
+});
+
+ONECOLOR.installMethod('rotate', function (degrees) {
+    return this.hue((degrees || 0) / 360, true);
+});
+
+
+ONECOLOR.installMethod('saturate', function (amount) {
+    return this.saturation(isNaN(amount) ? 0.1 : amount, true);
+});
+
+// Adapted from http://gimp.sourcearchive.com/documentation/2.6.6-1ubuntu1/color-to-alpha_8c-source.html
+/*
+    toAlpha returns a color where the values of the argument have been converted to alpha
+*/
+ONECOLOR.installMethod('toAlpha', function (color) {
+    var me = this.rgb(),
+        other = ONECOLOR(color).rgb(),
+        epsilon = 1e-10,
+        a = new ONECOLOR.RGB(0, 0, 0, me._alpha),
+        channels = ['_red', '_green', '_blue'];
+
+    channels.forEach(function (channel) {
+        if (me[channel] < epsilon) {
+            a[channel] = me[channel];
+        } else if (me[channel] > other[channel]) {
+            a[channel] = (me[channel] - other[channel]) / (1 - other[channel]);
+        } else if (me[channel] > other[channel]) {
+            a[channel] = (other[channel] - me[channel]) / other[channel];
+        } else {
+            a[channel] = 0;
+        }
+    });
+
+    if (a._red > a._green) {
+        if (a._red > a._blue) {
+            me._alpha = a._red;
+        } else {
+            me._alpha = a._blue;
+        }
+    } else if (a._green > a._blue) {
+        me._alpha = a._green;
+    } else {
+        me._alpha = a._blue;
+    }
+
+    if (me._alpha < epsilon) {
+        return me;
+    }
+
+    channels.forEach(function (channel) {
+        me[channel] = (me[channel] - other[channel]) / me._alpha + other[channel];
+    });
+    me._alpha *= a._alpha;
+
+    return me;
+});
+
+/*global one*/
+
+// This file is purely for the build system
+
+// Order is important to prevent channel name clashes. Lab <-> hsL
+
+// Convenience functions
+
 
 },{}],4:[function(require,module,exports){
+var md5 = require("./md5.js"),
+    color = require("onecolor");
+
+var hsv2rgb = function(h, s, v) {
+    return (new color.HSV(h/255, s/255 , v/255)).hex();
+};
+
+var getFrontColor = function(h, i) {
+    i = i % 10;
+    return hsv2rgb(h, 200 - i * 10, 120 + i);
+};
+
+var getBackColor = function(h) {
+    return hsv2rgb(h, 200, 90); 
+};
+
+var getAccentColor = function(h, i) {
+    i = i % 5;
+    return hsv2rgb(h, (i + 2) * 5, i * 5 + 220);
+};
+
+var createParams = function(title) {
+    var hash = md5.md5(title);
+    var p1 = title.length % 256;
+    var p2 = parseInt(hash.slice(0, 2), 16);
+    var p3 = parseInt(hash.slice(2, 4), 16);
+    var p4 = parseInt(hash.slice(4, 6), 16);
+    var p5 = parseInt(hash.slice(6, 8), 16);
+    var p6 = parseInt(hash.slice(8, 10), 16);
+    return [p1, p2, p3, p4, p5, p6];
+};
+
+var charcount = function(str){
+  len = 0;
+  str = escape(str);
+  for (i=0; i<str.length; i++, len++) {
+    if (str.charAt(i) == "%") {
+      if (str.charAt(++i) == "u") {
+        i += 3;
+        len++;
+      }
+      i++;
+    }
+  }
+  return len;
+}
+
+exports.draw = function(canvas, title, brand) {
+    title = title || "";
+    brand = brand || "";
+    params = createParams(title); 
+    var p1 = params[0];
+    var p2 = params[1];
+    var p3 = params[2];
+    var p4 = params[3];
+    var p5 = params[4];
+    var p6 = params[5];
+
+    var bright_style = canvas.createGradient({
+        x1: 0, y1: 0,
+        x2: 1200/2, y2: 630/3*2,
+        c1: "rgba(255, 255, 255, 0.1)", s1: 0.43,
+        c2: "rgba(255, 255, 255, 0.2)", s2: 0.97
+    });
+
+    canvas.clearCanvas(); 
+    var h = (p3 + (p1 + p2) * 7) % 256;
+
+    // Background
+    canvas.drawRect({
+        fillStyle: getBackColor(h),
+        x: 1200/2, y: 630/2,
+        width: 1200,
+        height: 630,
+        cornerRadius: 5,
+        mask: true,
+    });
+
+    // Small Bubbles
+    var bubble_count = (p1 + p2 + p3) % 50 + 80;
+    for (var i =1; i < bubble_count; i++) {
+        var x = ((i + p1) * (i + p4)) % 1200;
+        var y = ((i + p2) * (i + p5)) % 630;
+        var box_size = (630 - y)/8 - i/10;
+        canvas.drawRect({
+            fillStyle: getFrontColor(h, i),
+            x: x, y: y,
+            width: box_size,
+            height:box_size,
+            cornerRadius: 50
+        });
+    }
+
+    // Large Bubbles
+    var large_bubble_count = (p1 + p2 + p3) % 2 + 3;
+    for (var i =1; i <= large_bubble_count; i++) {
+        var x = (i * (300 + p4 - p5) + i * p2) % (1200 - 100) + 50;
+        var y = ((i + p4) * (i + p2)) % (630 - 50);
+        var box_size = (630 - y + 100) / 2;
+        canvas.drawRect({
+            fillStyle: getAccentColor(h, i),
+            x:x, y:y,
+            width: box_size,
+            height: box_size,
+            cornerRadius: 415
+        });
+    }
+
+    // Title background
+    canvas.drawRect({
+        fillStyle: "rgba(0, 0, 0, 0.8)",
+        x: 1200/2,
+        y: 630 - 70,
+        width: 1200,
+        height: 140
+    });
+
+    // Brand
+    canvas.drawText({
+        fillStyle: "#ffffff",
+        x: 1200/2,
+        y: (630 - 140)/2,
+	shadowColor: getBackColor(h),
+  	shadowBlur: 5,
+	shadowX: 3, shadowY: 3,
+        fontSize: (1200 - 100) / (charcount(brand)/2 + 2),
+        fontFamily: "'Noto Sans CJK JP Black', 'Noto Sans Japanese'",
+        fontWeight: 800,
+        text: brand,
+    });
+    // Title
+    canvas.drawText({
+        fillStyle: "#ffffff",
+        x: 1200/2,
+        y: 630 - 70,
+        fontSize: (1200 - 50) / (charcount(title)/2 + 10),
+        fontFamily: "'Noto Sans CJK JP Black', 'Noto Sans Japanese'",
+        fontWeight: 800,
+        text: title,
+    });
+
+    // hashtag
+    canvas.drawText({
+        fillStyle: "#ffffff",
+        x: 1200 - 50,
+        y: 630 - 10,
+        fontSize: 12,
+        fontFamily: "'Noto Sans CJK JP Black', 'Noto Sans Japanese'",
+        text: "#unique_ogp",
+    });
+
+    //Brightness 
+    canvas.drawPath({
+        fillStyle: bright_style,
+        strokeWidth: 0,
+        p1: {
+            type: 'line',
+            x1: 0, y1: 0,
+            x2: 0, y2:630 - 50,
+        },
+        p2: {
+            type: 'quadratic',
+            cx1: 1200/2, cy1: 120,
+            x2: 1200, y2: 80
+        },
+        p3: {
+            type: 'line',
+            x1: 1200, y1: 80,
+            x2: 1200, y2: 0,
+            x3: 0, y3: 0
+        }
+    });
+    
+    return canvas;
+};
+
+},{"./md5.js":2,"onecolor":3}],5:[function(require,module,exports){
+
+},{}],6:[function(require,module,exports){
 /*!
  * The buffer module from node.js, for the browser.
  *
@@ -1475,7 +2429,7 @@ function decodeUtf8Char (str) {
   }
 }
 
-},{"base64-js":5,"ieee754":6,"is-array":7}],5:[function(require,module,exports){
+},{"base64-js":7,"ieee754":8,"is-array":9}],7:[function(require,module,exports){
 var lookup = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
 ;(function (exports) {
@@ -1601,7 +2555,7 @@ var lookup = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 	exports.fromByteArray = uint8ToBase64
 }(typeof exports === 'undefined' ? (this.base64js = {}) : exports))
 
-},{}],6:[function(require,module,exports){
+},{}],8:[function(require,module,exports){
 exports.read = function (buffer, offset, isLE, mLen, nBytes) {
   var e, m
   var eLen = nBytes * 8 - mLen - 1
@@ -1687,7 +2641,7 @@ exports.write = function (buffer, value, offset, isLE, mLen, nBytes) {
   buffer[offset + i - d] |= s * 128
 }
 
-},{}],7:[function(require,module,exports){
+},{}],9:[function(require,module,exports){
 
 /**
  * isArray
@@ -1722,7 +2676,7 @@ module.exports = isArray || function (val) {
   return !! val && '[object Array]' == str.call(val);
 };
 
-},{}],8:[function(require,module,exports){
+},{}],10:[function(require,module,exports){
 'use strict';
 
 exports.randomBytes = exports.rng = exports.pseudoRandomBytes = exports.prng = require('randombytes')
@@ -1803,7 +2757,7 @@ var publicEncrypt = require('public-encrypt');
   }
 })
 
-},{"browserify-aes":12,"browserify-sign":28,"browserify-sign/algos":27,"create-ecdh":76,"create-hash":99,"create-hmac":111,"diffie-hellman":112,"pbkdf2":119,"public-encrypt":120,"randombytes":148}],9:[function(require,module,exports){
+},{"browserify-aes":14,"browserify-sign":30,"browserify-sign/algos":29,"create-ecdh":78,"create-hash":101,"create-hmac":113,"diffie-hellman":114,"pbkdf2":121,"public-encrypt":122,"randombytes":150}],11:[function(require,module,exports){
 (function (Buffer){
 var md5 = require('create-hash/md5')
 module.exports = EVP_BytesToKey
@@ -1869,7 +2823,7 @@ function EVP_BytesToKey (password, keyLen, ivLen) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":4,"create-hash/md5":101}],10:[function(require,module,exports){
+},{"buffer":6,"create-hash/md5":103}],12:[function(require,module,exports){
 (function (Buffer){
 // based on the aes implimentation in triple sec
 // https://github.com/keybase/triplesec
@@ -2050,7 +3004,7 @@ AES.prototype._doCryptBlock = function (M, keySchedule, SUB_MIX, SBOX) {
 exports.AES = AES
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":4}],11:[function(require,module,exports){
+},{"buffer":6}],13:[function(require,module,exports){
 (function (Buffer){
 var aes = require('./aes')
 var Transform = require('./cipherBase')
@@ -2151,7 +3105,7 @@ function xorTest (a, b) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"./aes":10,"./cipherBase":13,"./ghash":16,"./xor":26,"buffer":4,"inherits":150}],12:[function(require,module,exports){
+},{"./aes":12,"./cipherBase":15,"./ghash":18,"./xor":28,"buffer":6,"inherits":152}],14:[function(require,module,exports){
 var ciphers = require('./encrypter')
 exports.createCipher = exports.Cipher = ciphers.createCipher
 exports.createCipheriv = exports.Cipheriv = ciphers.createCipheriv
@@ -2164,7 +3118,7 @@ function getCiphers () {
 }
 exports.listCiphers = exports.getCiphers = getCiphers
 
-},{"./decrypter":14,"./encrypter":15,"./modes":17}],13:[function(require,module,exports){
+},{"./decrypter":16,"./encrypter":17,"./modes":19}],15:[function(require,module,exports){
 (function (Buffer){
 var Transform = require('stream').Transform
 var inherits = require('inherits')
@@ -2205,7 +3159,7 @@ CipherBase.prototype.final = function (outputEnc) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":4,"inherits":150,"stream":164}],14:[function(require,module,exports){
+},{"buffer":6,"inherits":152,"stream":166}],16:[function(require,module,exports){
 (function (Buffer){
 var aes = require('./aes')
 var Transform = require('./cipherBase')
@@ -2345,7 +3299,7 @@ exports.createDecipher = createDecipher
 exports.createDecipheriv = createDecipheriv
 
 }).call(this,require("buffer").Buffer)
-},{"./EVP_BytesToKey":9,"./aes":10,"./authCipher":11,"./cipherBase":13,"./modes":17,"./modes/cbc":18,"./modes/cfb":19,"./modes/cfb1":20,"./modes/cfb8":21,"./modes/ctr":22,"./modes/ecb":23,"./modes/ofb":24,"./streamCipher":25,"buffer":4,"inherits":150}],15:[function(require,module,exports){
+},{"./EVP_BytesToKey":11,"./aes":12,"./authCipher":13,"./cipherBase":15,"./modes":19,"./modes/cbc":20,"./modes/cfb":21,"./modes/cfb1":22,"./modes/cfb8":23,"./modes/ctr":24,"./modes/ecb":25,"./modes/ofb":26,"./streamCipher":27,"buffer":6,"inherits":152}],17:[function(require,module,exports){
 (function (Buffer){
 var aes = require('./aes')
 var Transform = require('./cipherBase')
@@ -2470,7 +3424,7 @@ exports.createCipheriv = createCipheriv
 exports.createCipher = createCipher
 
 }).call(this,require("buffer").Buffer)
-},{"./EVP_BytesToKey":9,"./aes":10,"./authCipher":11,"./cipherBase":13,"./modes":17,"./modes/cbc":18,"./modes/cfb":19,"./modes/cfb1":20,"./modes/cfb8":21,"./modes/ctr":22,"./modes/ecb":23,"./modes/ofb":24,"./streamCipher":25,"buffer":4,"inherits":150}],16:[function(require,module,exports){
+},{"./EVP_BytesToKey":11,"./aes":12,"./authCipher":13,"./cipherBase":15,"./modes":19,"./modes/cbc":20,"./modes/cfb":21,"./modes/cfb1":22,"./modes/cfb8":23,"./modes/ctr":24,"./modes/ecb":25,"./modes/ofb":26,"./streamCipher":27,"buffer":6,"inherits":152}],18:[function(require,module,exports){
 (function (Buffer){
 var zeros = new Buffer(16)
 zeros.fill(0)
@@ -2572,7 +3526,7 @@ function xor (a, b) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":4}],17:[function(require,module,exports){
+},{"buffer":6}],19:[function(require,module,exports){
 exports['aes-128-ecb'] = {
   cipher: 'AES',
   key: 128,
@@ -2745,7 +3699,7 @@ exports['aes-256-gcm'] = {
   type: 'auth'
 }
 
-},{}],18:[function(require,module,exports){
+},{}],20:[function(require,module,exports){
 var xor = require('../xor')
 exports.encrypt = function (self, block) {
   var data = xor(block, self._prev)
@@ -2759,7 +3713,7 @@ exports.decrypt = function (self, block) {
   return xor(out, pad)
 }
 
-},{"../xor":26}],19:[function(require,module,exports){
+},{"../xor":28}],21:[function(require,module,exports){
 (function (Buffer){
 var xor = require('../xor')
 exports.encrypt = function (self, data, decrypt) {
@@ -2790,7 +3744,7 @@ function encryptStart (self, data, decrypt) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"../xor":26,"buffer":4}],20:[function(require,module,exports){
+},{"../xor":28,"buffer":6}],22:[function(require,module,exports){
 (function (Buffer){
 function encryptByte (self, byteParam, decrypt) {
   var pad
@@ -2828,7 +3782,7 @@ function shiftIn (buffer, value) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":4}],21:[function(require,module,exports){
+},{"buffer":6}],23:[function(require,module,exports){
 (function (Buffer){
 function encryptByte (self, byteParam, decrypt) {
   var pad = self._cipher.encryptBlock(self._prev)
@@ -2847,7 +3801,7 @@ exports.encrypt = function (self, chunk, decrypt) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":4}],22:[function(require,module,exports){
+},{"buffer":6}],24:[function(require,module,exports){
 (function (Buffer){
 var xor = require('../xor')
 function getBlock (self) {
@@ -2879,7 +3833,7 @@ function incr32 (iv) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"../xor":26,"buffer":4}],23:[function(require,module,exports){
+},{"../xor":28,"buffer":6}],25:[function(require,module,exports){
 exports.encrypt = function (self, block) {
   return self._cipher.encryptBlock(block)
 }
@@ -2887,7 +3841,7 @@ exports.decrypt = function (self, block) {
   return self._cipher.decryptBlock(block)
 }
 
-},{}],24:[function(require,module,exports){
+},{}],26:[function(require,module,exports){
 (function (Buffer){
 var xor = require('../xor')
 function getBlock (self) {
@@ -2904,7 +3858,7 @@ exports.encrypt = function (self, chunk) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"../xor":26,"buffer":4}],25:[function(require,module,exports){
+},{"../xor":28,"buffer":6}],27:[function(require,module,exports){
 (function (Buffer){
 var aes = require('./aes')
 var Transform = require('./cipherBase')
@@ -2933,7 +3887,7 @@ StreamCipher.prototype._final = function () {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"./aes":10,"./cipherBase":13,"buffer":4,"inherits":150}],26:[function(require,module,exports){
+},{"./aes":12,"./cipherBase":15,"buffer":6,"inherits":152}],28:[function(require,module,exports){
 (function (Buffer){
 module.exports = xor
 function xor (a, b) {
@@ -2947,7 +3901,7 @@ function xor (a, b) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":4}],27:[function(require,module,exports){
+},{"buffer":6}],29:[function(require,module,exports){
 (function (Buffer){
 'use strict'
 exports['RSA-SHA224'] = exports.sha224WithRSAEncryption = {
@@ -3022,7 +3976,7 @@ exports['RSA-MD5'] = exports.md5WithRSAEncryption = {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":4}],28:[function(require,module,exports){
+},{"buffer":6}],30:[function(require,module,exports){
 (function (Buffer){
 'use strict'
 var sign = require('./sign')
@@ -3119,7 +4073,7 @@ Verify.prototype.verify = function verifyMethod (key, sig, enc) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"./algos":27,"./sign":73,"./verify":74,"buffer":4,"create-hash":99,"inherits":150,"stream":164}],29:[function(require,module,exports){
+},{"./algos":29,"./sign":75,"./verify":76,"buffer":6,"create-hash":101,"inherits":152,"stream":166}],31:[function(require,module,exports){
 'use strict'
 exports['1.3.132.0.10'] = 'secp256k1'
 
@@ -3129,7 +4083,7 @@ exports['1.2.840.10045.3.1.1'] = 'p192'
 
 exports['1.2.840.10045.3.1.7'] = 'p256'
 
-},{}],30:[function(require,module,exports){
+},{}],32:[function(require,module,exports){
 (function (module, exports) {
 
 'use strict';
@@ -5449,7 +6403,7 @@ Mont.prototype.invm = function invm(a) {
 
 })(typeof module === 'undefined' || module, this);
 
-},{}],31:[function(require,module,exports){
+},{}],33:[function(require,module,exports){
 (function (Buffer){
 var bn = require('bn.js');
 var randomBytes = require('randombytes');
@@ -5498,7 +6452,7 @@ function getr(priv) {
   return r;
 }
 }).call(this,require("buffer").Buffer)
-},{"bn.js":30,"buffer":4,"randombytes":148}],32:[function(require,module,exports){
+},{"bn.js":32,"buffer":6,"randombytes":150}],34:[function(require,module,exports){
 'use strict';
 
 var elliptic = exports;
@@ -5513,7 +6467,7 @@ elliptic.curves = require('./elliptic/curves');
 // Protocols
 elliptic.ec = require('./elliptic/ec');
 
-},{"../package.json":52,"./elliptic/curve":35,"./elliptic/curves":38,"./elliptic/ec":39,"./elliptic/hmac-drbg":42,"./elliptic/utils":44,"brorand":45}],33:[function(require,module,exports){
+},{"../package.json":54,"./elliptic/curve":37,"./elliptic/curves":40,"./elliptic/ec":41,"./elliptic/hmac-drbg":44,"./elliptic/utils":46,"brorand":47}],35:[function(require,module,exports){
 'use strict';
 
 var bn = require('bn.js');
@@ -5830,7 +6784,7 @@ BasePoint.prototype.dblp = function dblp(k) {
   return r;
 };
 
-},{"../../elliptic":32,"bn.js":30}],34:[function(require,module,exports){
+},{"../../elliptic":34,"bn.js":32}],36:[function(require,module,exports){
 'use strict';
 
 var curve = require('../curve');
@@ -6203,7 +7157,7 @@ Point.prototype.getY = function getY() {
 Point.prototype.toP = Point.prototype.normalize;
 Point.prototype.mixedAdd = Point.prototype.add;
 
-},{"../../elliptic":32,"../curve":35,"bn.js":30,"inherits":150}],35:[function(require,module,exports){
+},{"../../elliptic":34,"../curve":37,"bn.js":32,"inherits":152}],37:[function(require,module,exports){
 'use strict';
 
 var curve = exports;
@@ -6213,7 +7167,7 @@ curve.short = require('./short');
 curve.mont = require('./mont');
 curve.edwards = require('./edwards');
 
-},{"./base":33,"./edwards":34,"./mont":36,"./short":37}],36:[function(require,module,exports){
+},{"./base":35,"./edwards":36,"./mont":38,"./short":39}],38:[function(require,module,exports){
 'use strict';
 
 var curve = require('../curve');
@@ -6376,7 +7330,7 @@ Point.prototype.getX = function getX() {
   return this.x.fromRed();
 };
 
-},{"../curve":35,"bn.js":30,"inherits":150}],37:[function(require,module,exports){
+},{"../curve":37,"bn.js":32,"inherits":152}],39:[function(require,module,exports){
 'use strict';
 
 var curve = require('../curve');
@@ -7285,7 +8239,7 @@ JPoint.prototype.isInfinity = function isInfinity() {
   return this.z.cmpn(0) === 0;
 };
 
-},{"../../elliptic":32,"../curve":35,"bn.js":30,"inherits":150}],38:[function(require,module,exports){
+},{"../../elliptic":34,"../curve":37,"bn.js":32,"inherits":152}],40:[function(require,module,exports){
 'use strict';
 
 var curves = exports;
@@ -7444,7 +8398,7 @@ defineCurve('secp256k1', {
   ]
 });
 
-},{"../elliptic":32,"./precomputed/secp256k1":43,"hash.js":46}],39:[function(require,module,exports){
+},{"../elliptic":34,"./precomputed/secp256k1":45,"hash.js":48}],41:[function(require,module,exports){
 'use strict';
 
 var bn = require('bn.js');
@@ -7655,7 +8609,7 @@ EC.prototype.getKeyRecoveryParam = function(e, signature, Q, enc) {
   throw new Error('Unable to find valid recovery factor');
 };
 
-},{"../../elliptic":32,"./key":40,"./signature":41,"bn.js":30}],40:[function(require,module,exports){
+},{"../../elliptic":34,"./key":42,"./signature":43,"bn.js":32}],42:[function(require,module,exports){
 'use strict';
 
 var bn = require('bn.js');
@@ -7807,7 +8761,7 @@ KeyPair.prototype.inspect = function inspect() {
          ' pub: ' + (this.pub && this.pub.inspect()) + ' >';
 };
 
-},{"../../elliptic":32,"bn.js":30}],41:[function(require,module,exports){
+},{"../../elliptic":34,"bn.js":32}],43:[function(require,module,exports){
 'use strict';
 
 var bn = require('bn.js');
@@ -7879,7 +8833,7 @@ Signature.prototype.toDER = function toDER(enc) {
   return utils.encode(res, enc);
 };
 
-},{"../../elliptic":32,"bn.js":30}],42:[function(require,module,exports){
+},{"../../elliptic":34,"bn.js":32}],44:[function(require,module,exports){
 'use strict';
 
 var hash = require('hash.js');
@@ -7995,7 +8949,7 @@ HmacDRBG.prototype.generate = function generate(len, enc, add, addEnc) {
   return utils.encode(res, enc);
 };
 
-},{"../elliptic":32,"hash.js":46}],43:[function(require,module,exports){
+},{"../elliptic":34,"hash.js":48}],45:[function(require,module,exports){
 module.exports = {
   doubles: {
     step: 4,
@@ -8777,7 +9731,7 @@ module.exports = {
   }
 };
 
-},{}],44:[function(require,module,exports){
+},{}],46:[function(require,module,exports){
 'use strict';
 
 var utils = exports;
@@ -8929,7 +9883,7 @@ function getJSF(k1, k2) {
 }
 utils.getJSF = getJSF;
 
-},{}],45:[function(require,module,exports){
+},{}],47:[function(require,module,exports){
 var r;
 
 module.exports = function rand(len) {
@@ -8988,7 +9942,7 @@ if (typeof window === 'object') {
   }
 }
 
-},{}],46:[function(require,module,exports){
+},{}],48:[function(require,module,exports){
 var hash = exports;
 
 hash.utils = require('./hash/utils');
@@ -9005,7 +9959,7 @@ hash.sha384 = hash.sha.sha384;
 hash.sha512 = hash.sha.sha512;
 hash.ripemd160 = hash.ripemd.ripemd160;
 
-},{"./hash/common":47,"./hash/hmac":48,"./hash/ripemd":49,"./hash/sha":50,"./hash/utils":51}],47:[function(require,module,exports){
+},{"./hash/common":49,"./hash/hmac":50,"./hash/ripemd":51,"./hash/sha":52,"./hash/utils":53}],49:[function(require,module,exports){
 var hash = require('../hash');
 var utils = hash.utils;
 var assert = utils.assert;
@@ -9098,7 +10052,7 @@ BlockHash.prototype._pad = function pad() {
   return res;
 };
 
-},{"../hash":46}],48:[function(require,module,exports){
+},{"../hash":48}],50:[function(require,module,exports){
 var hmac = exports;
 
 var hash = require('../hash');
@@ -9148,7 +10102,7 @@ Hmac.prototype.digest = function digest(enc) {
   return this.outer.digest(enc);
 };
 
-},{"../hash":46}],49:[function(require,module,exports){
+},{"../hash":48}],51:[function(require,module,exports){
 var hash = require('../hash');
 var utils = hash.utils;
 
@@ -9294,7 +10248,7 @@ var sh = [
   8, 5, 12, 9, 12, 5, 14, 6, 8, 13, 6, 5, 15, 13, 11, 11
 ];
 
-},{"../hash":46}],50:[function(require,module,exports){
+},{"../hash":48}],52:[function(require,module,exports){
 var hash = require('../hash');
 var utils = hash.utils;
 var assert = utils.assert;
@@ -9860,7 +10814,7 @@ function g1_512_lo(xh, xl) {
   return r;
 }
 
-},{"../hash":46}],51:[function(require,module,exports){
+},{"../hash":48}],53:[function(require,module,exports){
 var utils = exports;
 var inherits = require('inherits');
 
@@ -10119,7 +11073,7 @@ function shr64_lo(ah, al, num) {
 };
 exports.shr64_lo = shr64_lo;
 
-},{"inherits":150}],52:[function(require,module,exports){
+},{"inherits":152}],54:[function(require,module,exports){
 module.exports={
   "name": "elliptic",
   "version": "3.1.0",
@@ -10185,7 +11139,7 @@ module.exports={
   "readme": "ERROR: No README data found!"
 }
 
-},{}],53:[function(require,module,exports){
+},{}],55:[function(require,module,exports){
 (function (Buffer){
 var createHash = require('create-hash');
 module.exports = function evp(password, salt, keyLen) {
@@ -10227,7 +11181,7 @@ module.exports = function evp(password, salt, keyLen) {
   return key;
 };
 }).call(this,require("buffer").Buffer)
-},{"buffer":4,"create-hash":99}],54:[function(require,module,exports){
+},{"buffer":6,"create-hash":101}],56:[function(require,module,exports){
 module.exports={"2.16.840.1.101.3.4.1.1": "aes-128-ecb",
 "2.16.840.1.101.3.4.1.2": "aes-128-cbc",
 "2.16.840.1.101.3.4.1.3": "aes-128-ofb",
@@ -10241,7 +11195,7 @@ module.exports={"2.16.840.1.101.3.4.1.1": "aes-128-ecb",
 "2.16.840.1.101.3.4.1.43": "aes-256-ofb",
 "2.16.840.1.101.3.4.1.44": "aes-256-cfb"
 }
-},{}],55:[function(require,module,exports){
+},{}],57:[function(require,module,exports){
 // from https://github.com/indutny/self-signed/blob/gh-pages/lib/asn1.js
 // Fedor, you are amazing.
 
@@ -10360,7 +11314,7 @@ exports.signature = asn1.define('signature', function() {
   );
 });
 
-},{"asn1.js":58}],56:[function(require,module,exports){
+},{"asn1.js":60}],58:[function(require,module,exports){
 (function (Buffer){
 // adapted from https://github.com/apatil/pemstrip
 var findProc = /Proc-Type: 4,ENCRYPTED\r?\nDEK-Info: AES-((?:128)|(?:192)|(?:256))-CBC,([0-9A-H]+)\r?\n\r?\n([0-9A-z\n\r\+\/\=]+)\r?\n/m;
@@ -10404,7 +11358,7 @@ function wrap (str) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"./EVP_BytesToKey":53,"browserify-aes":12,"buffer":4}],57:[function(require,module,exports){
+},{"./EVP_BytesToKey":55,"browserify-aes":14,"buffer":6}],59:[function(require,module,exports){
 (function (Buffer){
 var asn1 = require('./asn1');
 var aesid = require('./aesid.json');
@@ -10509,7 +11463,7 @@ function decrypt(data, password) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"./aesid.json":54,"./asn1":55,"./fixProc":56,"browserify-aes":12,"buffer":4,"pbkdf2":119}],58:[function(require,module,exports){
+},{"./aesid.json":56,"./asn1":57,"./fixProc":58,"browserify-aes":14,"buffer":6,"pbkdf2":121}],60:[function(require,module,exports){
 var asn1 = exports;
 
 asn1.bignum = require('bn.js');
@@ -10520,7 +11474,7 @@ asn1.constants = require('./asn1/constants');
 asn1.decoders = require('./asn1/decoders');
 asn1.encoders = require('./asn1/encoders');
 
-},{"./asn1/api":59,"./asn1/base":61,"./asn1/constants":65,"./asn1/decoders":67,"./asn1/encoders":70,"bn.js":30}],59:[function(require,module,exports){
+},{"./asn1/api":61,"./asn1/base":63,"./asn1/constants":67,"./asn1/decoders":69,"./asn1/encoders":72,"bn.js":32}],61:[function(require,module,exports){
 var asn1 = require('../asn1');
 var inherits = require('inherits');
 
@@ -10581,7 +11535,7 @@ Entity.prototype.encode = function encode(data, enc, /* internal */ reporter) {
   return this._getEncoder(enc).encode(data, reporter);
 };
 
-},{"../asn1":58,"inherits":150,"vm":166}],60:[function(require,module,exports){
+},{"../asn1":60,"inherits":152,"vm":168}],62:[function(require,module,exports){
 var inherits = require('inherits');
 var Reporter = require('../base').Reporter;
 var Buffer = require('buffer').Buffer;
@@ -10699,7 +11653,7 @@ EncoderBuffer.prototype.join = function join(out, offset) {
   return out;
 };
 
-},{"../base":61,"buffer":4,"inherits":150}],61:[function(require,module,exports){
+},{"../base":63,"buffer":6,"inherits":152}],63:[function(require,module,exports){
 var base = exports;
 
 base.Reporter = require('./reporter').Reporter;
@@ -10707,7 +11661,7 @@ base.DecoderBuffer = require('./buffer').DecoderBuffer;
 base.EncoderBuffer = require('./buffer').EncoderBuffer;
 base.Node = require('./node');
 
-},{"./buffer":60,"./node":62,"./reporter":63}],62:[function(require,module,exports){
+},{"./buffer":62,"./node":64,"./reporter":65}],64:[function(require,module,exports){
 var Reporter = require('../base').Reporter;
 var EncoderBuffer = require('../base').EncoderBuffer;
 var assert = require('minimalistic-assert');
@@ -11303,7 +12257,7 @@ Node.prototype._encodePrimitive = function encodePrimitive(tag, data) {
     throw new Error('Unsupported tag: ' + tag);
 };
 
-},{"../base":61,"minimalistic-assert":72}],63:[function(require,module,exports){
+},{"../base":63,"minimalistic-assert":74}],65:[function(require,module,exports){
 var inherits = require('inherits');
 
 function Reporter(options) {
@@ -11407,7 +12361,7 @@ ReporterError.prototype.rethrow = function rethrow(msg) {
   return this;
 };
 
-},{"inherits":150}],64:[function(require,module,exports){
+},{"inherits":152}],66:[function(require,module,exports){
 var constants = require('../constants');
 
 exports.tagClass = {
@@ -11451,7 +12405,7 @@ exports.tag = {
 };
 exports.tagByName = constants._reverse(exports.tag);
 
-},{"../constants":65}],65:[function(require,module,exports){
+},{"../constants":67}],67:[function(require,module,exports){
 var constants = exports;
 
 // Helper
@@ -11472,7 +12426,7 @@ constants._reverse = function reverse(map) {
 
 constants.der = require('./der');
 
-},{"./der":64}],66:[function(require,module,exports){
+},{"./der":66}],68:[function(require,module,exports){
 var inherits = require('inherits');
 
 var asn1 = require('../../asn1');
@@ -11763,13 +12717,13 @@ function derDecodeLen(buf, primitive, fail) {
   return len;
 }
 
-},{"../../asn1":58,"inherits":150}],67:[function(require,module,exports){
+},{"../../asn1":60,"inherits":152}],69:[function(require,module,exports){
 var decoders = exports;
 
 decoders.der = require('./der');
 decoders.pem = require('./pem');
 
-},{"./der":66,"./pem":68}],68:[function(require,module,exports){
+},{"./der":68,"./pem":70}],70:[function(require,module,exports){
 var inherits = require('inherits');
 var Buffer = require('buffer').Buffer;
 
@@ -11821,7 +12775,7 @@ PEMDecoder.prototype.decode = function decode(data, options) {
   return DERDecoder.prototype.decode.call(this, input, options);
 };
 
-},{"../../asn1":58,"./der":66,"buffer":4,"inherits":150}],69:[function(require,module,exports){
+},{"../../asn1":60,"./der":68,"buffer":6,"inherits":152}],71:[function(require,module,exports){
 var inherits = require('inherits');
 var Buffer = require('buffer').Buffer;
 
@@ -12093,13 +13047,13 @@ function encodeTag(tag, primitive, cls, reporter) {
   return res;
 }
 
-},{"../../asn1":58,"buffer":4,"inherits":150}],70:[function(require,module,exports){
+},{"../../asn1":60,"buffer":6,"inherits":152}],72:[function(require,module,exports){
 var encoders = exports;
 
 encoders.der = require('./der');
 encoders.pem = require('./pem');
 
-},{"./der":69,"./pem":71}],71:[function(require,module,exports){
+},{"./der":71,"./pem":73}],73:[function(require,module,exports){
 var inherits = require('inherits');
 var Buffer = require('buffer').Buffer;
 
@@ -12124,7 +13078,7 @@ PEMEncoder.prototype.encode = function encode(data, options) {
   return out.join('\n');
 };
 
-},{"../../asn1":58,"./der":69,"buffer":4,"inherits":150}],72:[function(require,module,exports){
+},{"../../asn1":60,"./der":71,"buffer":6,"inherits":152}],74:[function(require,module,exports){
 module.exports = assert;
 
 function assert(val, msg) {
@@ -12137,7 +13091,7 @@ assert.equal = function assertEqual(l, r, msg) {
     throw new Error(msg || ('Assertion failed: ' + l + ' != ' + r));
 };
 
-},{}],73:[function(require,module,exports){
+},{}],75:[function(require,module,exports){
 (function (Buffer){
 // much of this based on https://github.com/indutny/self-signed/blob/gh-pages/lib/rsa.js
 var parseKeys = require('parse-asn1')
@@ -12315,7 +13269,7 @@ function makeR (g, k, p, q) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"./curves":29,"bn.js":30,"browserify-rsa":31,"buffer":4,"create-hmac":111,"elliptic":32,"parse-asn1":57}],74:[function(require,module,exports){
+},{"./curves":31,"bn.js":32,"browserify-rsa":33,"buffer":6,"create-hmac":113,"elliptic":34,"parse-asn1":59}],76:[function(require,module,exports){
 (function (Buffer){
 'use strict'
 // much of this based on https://github.com/indutny/self-signed/blob/gh-pages/lib/rsa.js
@@ -12419,7 +13373,7 @@ function checkValue (b, q) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"./curves":29,"bn.js":30,"buffer":4,"elliptic":32,"parse-asn1":57}],75:[function(require,module,exports){
+},{"./curves":31,"bn.js":32,"buffer":6,"elliptic":34,"parse-asn1":59}],77:[function(require,module,exports){
 (function (Buffer){
 var elliptic = require('elliptic');
 var BN = require('bn.js');
@@ -12535,55 +13489,55 @@ function formatReturnValue(bn, enc, len) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"bn.js":77,"buffer":4,"elliptic":78}],76:[function(require,module,exports){
+},{"bn.js":79,"buffer":6,"elliptic":80}],78:[function(require,module,exports){
 var createECDH = require('crypto').createECDH;
 
 module.exports = createECDH || require('./browser');
-},{"./browser":75,"crypto":8}],77:[function(require,module,exports){
-arguments[4][30][0].apply(exports,arguments)
-},{"dup":30}],78:[function(require,module,exports){
+},{"./browser":77,"crypto":10}],79:[function(require,module,exports){
 arguments[4][32][0].apply(exports,arguments)
-},{"../package.json":98,"./elliptic/curve":81,"./elliptic/curves":84,"./elliptic/ec":85,"./elliptic/hmac-drbg":88,"./elliptic/utils":90,"brorand":91,"dup":32}],79:[function(require,module,exports){
-arguments[4][33][0].apply(exports,arguments)
-},{"../../elliptic":78,"bn.js":77,"dup":33}],80:[function(require,module,exports){
+},{"dup":32}],80:[function(require,module,exports){
 arguments[4][34][0].apply(exports,arguments)
-},{"../../elliptic":78,"../curve":81,"bn.js":77,"dup":34,"inherits":150}],81:[function(require,module,exports){
+},{"../package.json":100,"./elliptic/curve":83,"./elliptic/curves":86,"./elliptic/ec":87,"./elliptic/hmac-drbg":90,"./elliptic/utils":92,"brorand":93,"dup":34}],81:[function(require,module,exports){
 arguments[4][35][0].apply(exports,arguments)
-},{"./base":79,"./edwards":80,"./mont":82,"./short":83,"dup":35}],82:[function(require,module,exports){
+},{"../../elliptic":80,"bn.js":79,"dup":35}],82:[function(require,module,exports){
 arguments[4][36][0].apply(exports,arguments)
-},{"../curve":81,"bn.js":77,"dup":36,"inherits":150}],83:[function(require,module,exports){
+},{"../../elliptic":80,"../curve":83,"bn.js":79,"dup":36,"inherits":152}],83:[function(require,module,exports){
 arguments[4][37][0].apply(exports,arguments)
-},{"../../elliptic":78,"../curve":81,"bn.js":77,"dup":37,"inherits":150}],84:[function(require,module,exports){
+},{"./base":81,"./edwards":82,"./mont":84,"./short":85,"dup":37}],84:[function(require,module,exports){
 arguments[4][38][0].apply(exports,arguments)
-},{"../elliptic":78,"./precomputed/secp256k1":89,"dup":38,"hash.js":92}],85:[function(require,module,exports){
+},{"../curve":83,"bn.js":79,"dup":38,"inherits":152}],85:[function(require,module,exports){
 arguments[4][39][0].apply(exports,arguments)
-},{"../../elliptic":78,"./key":86,"./signature":87,"bn.js":77,"dup":39}],86:[function(require,module,exports){
+},{"../../elliptic":80,"../curve":83,"bn.js":79,"dup":39,"inherits":152}],86:[function(require,module,exports){
 arguments[4][40][0].apply(exports,arguments)
-},{"../../elliptic":78,"bn.js":77,"dup":40}],87:[function(require,module,exports){
+},{"../elliptic":80,"./precomputed/secp256k1":91,"dup":40,"hash.js":94}],87:[function(require,module,exports){
 arguments[4][41][0].apply(exports,arguments)
-},{"../../elliptic":78,"bn.js":77,"dup":41}],88:[function(require,module,exports){
+},{"../../elliptic":80,"./key":88,"./signature":89,"bn.js":79,"dup":41}],88:[function(require,module,exports){
 arguments[4][42][0].apply(exports,arguments)
-},{"../elliptic":78,"dup":42,"hash.js":92}],89:[function(require,module,exports){
+},{"../../elliptic":80,"bn.js":79,"dup":42}],89:[function(require,module,exports){
 arguments[4][43][0].apply(exports,arguments)
-},{"dup":43}],90:[function(require,module,exports){
+},{"../../elliptic":80,"bn.js":79,"dup":43}],90:[function(require,module,exports){
 arguments[4][44][0].apply(exports,arguments)
-},{"dup":44}],91:[function(require,module,exports){
+},{"../elliptic":80,"dup":44,"hash.js":94}],91:[function(require,module,exports){
 arguments[4][45][0].apply(exports,arguments)
 },{"dup":45}],92:[function(require,module,exports){
 arguments[4][46][0].apply(exports,arguments)
-},{"./hash/common":93,"./hash/hmac":94,"./hash/ripemd":95,"./hash/sha":96,"./hash/utils":97,"dup":46}],93:[function(require,module,exports){
+},{"dup":46}],93:[function(require,module,exports){
 arguments[4][47][0].apply(exports,arguments)
-},{"../hash":92,"dup":47}],94:[function(require,module,exports){
+},{"dup":47}],94:[function(require,module,exports){
 arguments[4][48][0].apply(exports,arguments)
-},{"../hash":92,"dup":48}],95:[function(require,module,exports){
+},{"./hash/common":95,"./hash/hmac":96,"./hash/ripemd":97,"./hash/sha":98,"./hash/utils":99,"dup":48}],95:[function(require,module,exports){
 arguments[4][49][0].apply(exports,arguments)
-},{"../hash":92,"dup":49}],96:[function(require,module,exports){
+},{"../hash":94,"dup":49}],96:[function(require,module,exports){
 arguments[4][50][0].apply(exports,arguments)
-},{"../hash":92,"dup":50}],97:[function(require,module,exports){
+},{"../hash":94,"dup":50}],97:[function(require,module,exports){
 arguments[4][51][0].apply(exports,arguments)
-},{"dup":51,"inherits":150}],98:[function(require,module,exports){
+},{"../hash":94,"dup":51}],98:[function(require,module,exports){
 arguments[4][52][0].apply(exports,arguments)
-},{"dup":52}],99:[function(require,module,exports){
+},{"../hash":94,"dup":52}],99:[function(require,module,exports){
+arguments[4][53][0].apply(exports,arguments)
+},{"dup":53,"inherits":152}],100:[function(require,module,exports){
+arguments[4][54][0].apply(exports,arguments)
+},{"dup":54}],101:[function(require,module,exports){
 (function (Buffer){
 'use strict';
 var inherits = require('inherits')
@@ -12676,7 +13630,7 @@ module.exports = function createHash (alg) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"./md5":101,"buffer":4,"inherits":150,"ripemd160":102,"sha.js":104,"stream":164}],100:[function(require,module,exports){
+},{"./md5":103,"buffer":6,"inherits":152,"ripemd160":104,"sha.js":106,"stream":166}],102:[function(require,module,exports){
 (function (Buffer){
 'use strict';
 var intSize = 4;
@@ -12713,7 +13667,7 @@ function hash(buf, fn, hashSize, bigEndian) {
 }
 exports.hash = hash;
 }).call(this,require("buffer").Buffer)
-},{"buffer":4}],101:[function(require,module,exports){
+},{"buffer":6}],103:[function(require,module,exports){
 'use strict';
 /*
  * A JavaScript implementation of the RSA Data Security, Inc. MD5 Message
@@ -12870,7 +13824,7 @@ function bit_rol(num, cnt)
 module.exports = function md5(buf) {
   return helpers.hash(buf, core_md5, 16);
 };
-},{"./helpers":100}],102:[function(require,module,exports){
+},{"./helpers":102}],104:[function(require,module,exports){
 (function (Buffer){
 /*
 CryptoJS v3.1.2
@@ -13084,7 +14038,7 @@ function ripemd160 (message) {
 module.exports = ripemd160
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":4}],103:[function(require,module,exports){
+},{"buffer":6}],105:[function(require,module,exports){
 (function (Buffer){
 // prototype class for hash functions
 function Hash (blockSize, finalSize) {
@@ -13157,7 +14111,7 @@ Hash.prototype._update = function () {
 module.exports = Hash
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":4}],104:[function(require,module,exports){
+},{"buffer":6}],106:[function(require,module,exports){
 var exports = module.exports = function SHA (algorithm) {
   algorithm = algorithm.toLowerCase()
 
@@ -13174,7 +14128,7 @@ exports.sha256 = require('./sha256')
 exports.sha384 = require('./sha384')
 exports.sha512 = require('./sha512')
 
-},{"./sha":105,"./sha1":106,"./sha224":107,"./sha256":108,"./sha384":109,"./sha512":110}],105:[function(require,module,exports){
+},{"./sha":107,"./sha1":108,"./sha224":109,"./sha256":110,"./sha384":111,"./sha512":112}],107:[function(require,module,exports){
 (function (Buffer){
 /*
  * A JavaScript implementation of the Secure Hash Algorithm, SHA-0, as defined
@@ -13277,7 +14231,7 @@ module.exports = Sha
 
 
 }).call(this,require("buffer").Buffer)
-},{"./hash":103,"buffer":4,"inherits":150}],106:[function(require,module,exports){
+},{"./hash":105,"buffer":6,"inherits":152}],108:[function(require,module,exports){
 (function (Buffer){
 /*
  * A JavaScript implementation of the Secure Hash Algorithm, SHA-1, as defined
@@ -13376,7 +14330,7 @@ Sha1.prototype._hash = function () {
 module.exports = Sha1
 
 }).call(this,require("buffer").Buffer)
-},{"./hash":103,"buffer":4,"inherits":150}],107:[function(require,module,exports){
+},{"./hash":105,"buffer":6,"inherits":152}],109:[function(require,module,exports){
 (function (Buffer){
 /**
  * A JavaScript implementation of the Secure Hash Algorithm, SHA-256, as defined
@@ -13432,7 +14386,7 @@ Sha224.prototype._hash = function () {
 module.exports = Sha224
 
 }).call(this,require("buffer").Buffer)
-},{"./hash":103,"./sha256":108,"buffer":4,"inherits":150}],108:[function(require,module,exports){
+},{"./hash":105,"./sha256":110,"buffer":6,"inherits":152}],110:[function(require,module,exports){
 (function (Buffer){
 /**
  * A JavaScript implementation of the Secure Hash Algorithm, SHA-256, as defined
@@ -13585,7 +14539,7 @@ Sha256.prototype._hash = function () {
 module.exports = Sha256
 
 }).call(this,require("buffer").Buffer)
-},{"./hash":103,"buffer":4,"inherits":150}],109:[function(require,module,exports){
+},{"./hash":105,"buffer":6,"inherits":152}],111:[function(require,module,exports){
 (function (Buffer){
 var inherits = require('inherits')
 var SHA512 = require('./sha512')
@@ -13645,7 +14599,7 @@ Sha384.prototype._hash = function () {
 module.exports = Sha384
 
 }).call(this,require("buffer").Buffer)
-},{"./hash":103,"./sha512":110,"buffer":4,"inherits":150}],110:[function(require,module,exports){
+},{"./hash":105,"./sha512":112,"buffer":6,"inherits":152}],112:[function(require,module,exports){
 (function (Buffer){
 var inherits = require('inherits')
 var Hash = require('./hash')
@@ -13894,7 +14848,7 @@ Sha512.prototype._hash = function () {
 module.exports = Sha512
 
 }).call(this,require("buffer").Buffer)
-},{"./hash":103,"buffer":4,"inherits":150}],111:[function(require,module,exports){
+},{"./hash":105,"buffer":6,"inherits":152}],113:[function(require,module,exports){
 (function (Buffer){
 'use strict';
 var createHash = require('create-hash/browser');
@@ -13966,7 +14920,7 @@ module.exports = function createHmac(alg, key) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":4,"create-hash/browser":99,"inherits":150,"stream":164}],112:[function(require,module,exports){
+},{"buffer":6,"create-hash/browser":101,"inherits":152,"stream":166}],114:[function(require,module,exports){
 (function (Buffer){
 var generatePrime = require('./lib/generatePrime');
 var primes = require('./lib/primes');
@@ -14010,7 +14964,7 @@ exports.DiffieHellmanGroup = exports.createDiffieHellmanGroup = exports.getDiffi
 exports.createDiffieHellman = exports.DiffieHellman = createDiffieHellman;
 
 }).call(this,require("buffer").Buffer)
-},{"./lib/dh":113,"./lib/generatePrime":114,"./lib/primes":115,"buffer":4}],113:[function(require,module,exports){
+},{"./lib/dh":115,"./lib/generatePrime":116,"./lib/primes":117,"buffer":6}],115:[function(require,module,exports){
 (function (Buffer){
 var BN = require('bn.js');
 var MillerRabin = require('miller-rabin');
@@ -14180,7 +15134,7 @@ function formatReturnValue(bn, enc) {
   }
 }
 }).call(this,require("buffer").Buffer)
-},{"./generatePrime":114,"bn.js":116,"buffer":4,"miller-rabin":117,"randombytes":148}],114:[function(require,module,exports){
+},{"./generatePrime":116,"bn.js":118,"buffer":6,"miller-rabin":119,"randombytes":150}],116:[function(require,module,exports){
 var randomBytes = require('randombytes');
 module.exports = findPrime;
 findPrime.simpleSieve = simpleSieve;
@@ -14313,7 +15267,7 @@ function findPrime(bits, gen) {
   }
 
 }
-},{"bn.js":116,"miller-rabin":117,"randombytes":148}],115:[function(require,module,exports){
+},{"bn.js":118,"miller-rabin":119,"randombytes":150}],117:[function(require,module,exports){
 module.exports={
     "modp1": {
         "gen": "02",
@@ -14348,9 +15302,9 @@ module.exports={
         "prime": "ffffffffffffffffc90fdaa22168c234c4c6628b80dc1cd129024e088a67cc74020bbea63b139b22514a08798e3404ddef9519b3cd3a431b302b0a6df25f14374fe1356d6d51c245e485b576625e7ec6f44c42e9a637ed6b0bff5cb6f406b7edee386bfb5a899fa5ae9f24117c4b1fe649286651ece45b3dc2007cb8a163bf0598da48361c55d39a69163fa8fd24cf5f83655d23dca3ad961c62f356208552bb9ed529077096966d670c354e4abc9804f1746c08ca18217c32905e462e36ce3be39e772c180e86039b2783a2ec07a28fb5c55df06f4c52c9de2bcbf6955817183995497cea956ae515d2261898fa051015728e5a8aaac42dad33170d04507a33a85521abdf1cba64ecfb850458dbef0a8aea71575d060c7db3970f85a6e1e4c7abf5ae8cdb0933d71e8c94e04a25619dcee3d2261ad2ee6bf12ffa06d98a0864d87602733ec86a64521f2b18177b200cbbe117577a615d6c770988c0bad946e208e24fa074e5ab3143db5bfce0fd108e4b82d120a92108011a723c12a787e6d788719a10bdba5b2699c327186af4e23c1a946834b6150bda2583e9ca2ad44ce8dbbbc2db04de8ef92e8efc141fbecaa6287c59474e6bc05d99b2964fa090c3a2233ba186515be7ed1f612970cee2d7afb81bdd762170481cd0069127d5b05aa993b4ea988d8fddc186ffb7dc90a6c08f4df435c93402849236c3fab4d27c7026c1d4dcb2602646dec9751e763dba37bdf8ff9406ad9e530ee5db382f413001aeb06a53ed9027d831179727b0865a8918da3edbebcf9b14ed44ce6cbaced4bb1bdb7f1447e6cc254b332051512bd7af426fb8f401378cd2bf5983ca01c64b92ecf032ea15d1721d03f482d7ce6e74fef6d55e702f46980c82b5a84031900b1c9e59e7c97fbec7e8f323a97a7e36cc88be0f1d45b7ff585ac54bd407b22b4154aacc8f6d7ebf48e1d814cc5ed20f8037e0a79715eef29be32806a1d58bb7c5da76f550aa3d8a1fbff0eb19ccb1a313d55cda56c9ec2ef29632387fe8d76e3c0468043e8f663f4860ee12bf2d5b0b7474d6e694f91e6dbe115974a3926f12fee5e438777cb6a932df8cd8bec4d073b931ba3bc832b68d9dd300741fa7bf8afc47ed2576f6936ba424663aab639c5ae4f5683423b4742bf1c978238f16cbe39d652de3fdb8befc848ad922222e04a4037c0713eb57a81a23f0c73473fc646cea306b4bcbc8862f8385ddfa9d4b7fa2c087e879683303ed5bdd3a062b3cf5b3a278a66d2a13f83f44f82ddf310ee074ab6a364597e899a0255dc164f31cc50846851df9ab48195ded7ea1b1d510bd7ee74d73faf36bc31ecfa268359046f4eb879f924009438b481c6cd7889a002ed5ee382bc9190da6fc026e479558e4475677e9aa9e3050e2765694dfc81f56e880b96e7160c980dd98edd3dfffffffffffffffff"
     }
 }
-},{}],116:[function(require,module,exports){
-arguments[4][30][0].apply(exports,arguments)
-},{"dup":30}],117:[function(require,module,exports){
+},{}],118:[function(require,module,exports){
+arguments[4][32][0].apply(exports,arguments)
+},{"dup":32}],119:[function(require,module,exports){
 var bn = require('bn.js');
 var brorand = require('brorand');
 
@@ -14465,9 +15419,9 @@ MillerRabin.prototype.getDivisor = function getDivisor(n, k) {
   return false;
 };
 
-},{"bn.js":116,"brorand":118}],118:[function(require,module,exports){
-arguments[4][45][0].apply(exports,arguments)
-},{"dup":45}],119:[function(require,module,exports){
+},{"bn.js":118,"brorand":120}],120:[function(require,module,exports){
+arguments[4][47][0].apply(exports,arguments)
+},{"dup":47}],121:[function(require,module,exports){
 (function (Buffer){
 var createHmac = require('create-hmac')
 var MAX_ALLOC = Math.pow(2, 30) - 1 // default in iojs
@@ -14551,7 +15505,7 @@ function pbkdf2Sync (password, salt, iterations, keylen, digest) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":4,"create-hmac":111}],120:[function(require,module,exports){
+},{"buffer":6,"create-hmac":113}],122:[function(require,module,exports){
 exports.publicEncrypt = require('./publicEncrypt');
 exports.privateDecrypt = require('./privateDecrypt');
 
@@ -14562,7 +15516,7 @@ exports.privateEncrypt = function privateEncrypt(key, buf) {
 exports.publicDecrypt = function publicDecrypt(key, buf) {
   return exports.privateDecrypt(key, buf, true);
 };
-},{"./privateDecrypt":144,"./publicEncrypt":145}],121:[function(require,module,exports){
+},{"./privateDecrypt":146,"./publicEncrypt":147}],123:[function(require,module,exports){
 (function (Buffer){
 var createHash = require('create-hash');
 module.exports = function (seed, len) {
@@ -14581,51 +15535,51 @@ function i2ops(c) {
   return out;
 }
 }).call(this,require("buffer").Buffer)
-},{"buffer":4,"create-hash":99}],122:[function(require,module,exports){
-arguments[4][30][0].apply(exports,arguments)
-},{"dup":30}],123:[function(require,module,exports){
-arguments[4][31][0].apply(exports,arguments)
-},{"bn.js":122,"buffer":4,"dup":31,"randombytes":148}],124:[function(require,module,exports){
-arguments[4][53][0].apply(exports,arguments)
-},{"buffer":4,"create-hash":99,"dup":53}],125:[function(require,module,exports){
-arguments[4][54][0].apply(exports,arguments)
-},{"dup":54}],126:[function(require,module,exports){
+},{"buffer":6,"create-hash":101}],124:[function(require,module,exports){
+arguments[4][32][0].apply(exports,arguments)
+},{"dup":32}],125:[function(require,module,exports){
+arguments[4][33][0].apply(exports,arguments)
+},{"bn.js":124,"buffer":6,"dup":33,"randombytes":150}],126:[function(require,module,exports){
 arguments[4][55][0].apply(exports,arguments)
-},{"asn1.js":129,"dup":55}],127:[function(require,module,exports){
+},{"buffer":6,"create-hash":101,"dup":55}],127:[function(require,module,exports){
 arguments[4][56][0].apply(exports,arguments)
-},{"./EVP_BytesToKey":124,"browserify-aes":12,"buffer":4,"dup":56}],128:[function(require,module,exports){
+},{"dup":56}],128:[function(require,module,exports){
 arguments[4][57][0].apply(exports,arguments)
-},{"./aesid.json":125,"./asn1":126,"./fixProc":127,"browserify-aes":12,"buffer":4,"dup":57,"pbkdf2":119}],129:[function(require,module,exports){
+},{"asn1.js":131,"dup":57}],129:[function(require,module,exports){
 arguments[4][58][0].apply(exports,arguments)
-},{"./asn1/api":130,"./asn1/base":132,"./asn1/constants":136,"./asn1/decoders":138,"./asn1/encoders":141,"bn.js":122,"dup":58}],130:[function(require,module,exports){
+},{"./EVP_BytesToKey":126,"browserify-aes":14,"buffer":6,"dup":58}],130:[function(require,module,exports){
 arguments[4][59][0].apply(exports,arguments)
-},{"../asn1":129,"dup":59,"inherits":150,"vm":166}],131:[function(require,module,exports){
+},{"./aesid.json":127,"./asn1":128,"./fixProc":129,"browserify-aes":14,"buffer":6,"dup":59,"pbkdf2":121}],131:[function(require,module,exports){
 arguments[4][60][0].apply(exports,arguments)
-},{"../base":132,"buffer":4,"dup":60,"inherits":150}],132:[function(require,module,exports){
+},{"./asn1/api":132,"./asn1/base":134,"./asn1/constants":138,"./asn1/decoders":140,"./asn1/encoders":143,"bn.js":124,"dup":60}],132:[function(require,module,exports){
 arguments[4][61][0].apply(exports,arguments)
-},{"./buffer":131,"./node":133,"./reporter":134,"dup":61}],133:[function(require,module,exports){
+},{"../asn1":131,"dup":61,"inherits":152,"vm":168}],133:[function(require,module,exports){
 arguments[4][62][0].apply(exports,arguments)
-},{"../base":132,"dup":62,"minimalistic-assert":143}],134:[function(require,module,exports){
+},{"../base":134,"buffer":6,"dup":62,"inherits":152}],134:[function(require,module,exports){
 arguments[4][63][0].apply(exports,arguments)
-},{"dup":63,"inherits":150}],135:[function(require,module,exports){
+},{"./buffer":133,"./node":135,"./reporter":136,"dup":63}],135:[function(require,module,exports){
 arguments[4][64][0].apply(exports,arguments)
-},{"../constants":136,"dup":64}],136:[function(require,module,exports){
+},{"../base":134,"dup":64,"minimalistic-assert":145}],136:[function(require,module,exports){
 arguments[4][65][0].apply(exports,arguments)
-},{"./der":135,"dup":65}],137:[function(require,module,exports){
+},{"dup":65,"inherits":152}],137:[function(require,module,exports){
 arguments[4][66][0].apply(exports,arguments)
-},{"../../asn1":129,"dup":66,"inherits":150}],138:[function(require,module,exports){
+},{"../constants":138,"dup":66}],138:[function(require,module,exports){
 arguments[4][67][0].apply(exports,arguments)
-},{"./der":137,"./pem":139,"dup":67}],139:[function(require,module,exports){
+},{"./der":137,"dup":67}],139:[function(require,module,exports){
 arguments[4][68][0].apply(exports,arguments)
-},{"../../asn1":129,"./der":137,"buffer":4,"dup":68,"inherits":150}],140:[function(require,module,exports){
+},{"../../asn1":131,"dup":68,"inherits":152}],140:[function(require,module,exports){
 arguments[4][69][0].apply(exports,arguments)
-},{"../../asn1":129,"buffer":4,"dup":69,"inherits":150}],141:[function(require,module,exports){
+},{"./der":139,"./pem":141,"dup":69}],141:[function(require,module,exports){
 arguments[4][70][0].apply(exports,arguments)
-},{"./der":140,"./pem":142,"dup":70}],142:[function(require,module,exports){
+},{"../../asn1":131,"./der":139,"buffer":6,"dup":70,"inherits":152}],142:[function(require,module,exports){
 arguments[4][71][0].apply(exports,arguments)
-},{"../../asn1":129,"./der":140,"buffer":4,"dup":71,"inherits":150}],143:[function(require,module,exports){
+},{"../../asn1":131,"buffer":6,"dup":71,"inherits":152}],143:[function(require,module,exports){
 arguments[4][72][0].apply(exports,arguments)
-},{"dup":72}],144:[function(require,module,exports){
+},{"./der":142,"./pem":144,"dup":72}],144:[function(require,module,exports){
+arguments[4][73][0].apply(exports,arguments)
+},{"../../asn1":131,"./der":142,"buffer":6,"dup":73,"inherits":152}],145:[function(require,module,exports){
+arguments[4][74][0].apply(exports,arguments)
+},{"dup":74}],146:[function(require,module,exports){
 (function (Buffer){
 var parseKeys = require('parse-asn1');
 var mgf = require('./mgf');
@@ -14736,7 +15690,7 @@ function compare(a, b){
   return dif;
 }
 }).call(this,require("buffer").Buffer)
-},{"./mgf":121,"./withPublic":146,"./xor":147,"bn.js":122,"browserify-rsa":123,"buffer":4,"create-hash":99,"parse-asn1":128}],145:[function(require,module,exports){
+},{"./mgf":123,"./withPublic":148,"./xor":149,"bn.js":124,"browserify-rsa":125,"buffer":6,"create-hash":101,"parse-asn1":130}],147:[function(require,module,exports){
 (function (Buffer){
 var parseKeys = require('parse-asn1');
 var randomBytes = require('randombytes');
@@ -14834,7 +15788,7 @@ function nonZero(len, crypto) {
   return out;
 }
 }).call(this,require("buffer").Buffer)
-},{"./mgf":121,"./withPublic":146,"./xor":147,"bn.js":122,"browserify-rsa":123,"buffer":4,"create-hash":99,"parse-asn1":128,"randombytes":148}],146:[function(require,module,exports){
+},{"./mgf":123,"./withPublic":148,"./xor":149,"bn.js":124,"browserify-rsa":125,"buffer":6,"create-hash":101,"parse-asn1":130,"randombytes":150}],148:[function(require,module,exports){
 (function (Buffer){
 var bn = require('bn.js');
 function withPublic(paddedMsg, key) {
@@ -14847,7 +15801,7 @@ function withPublic(paddedMsg, key) {
 
 module.exports = withPublic;
 }).call(this,require("buffer").Buffer)
-},{"bn.js":122,"buffer":4}],147:[function(require,module,exports){
+},{"bn.js":124,"buffer":6}],149:[function(require,module,exports){
 module.exports = function xor(a, b) {
   var len = a.length;
   var i = -1;
@@ -14856,7 +15810,7 @@ module.exports = function xor(a, b) {
   }
   return a
 };
-},{}],148:[function(require,module,exports){
+},{}],150:[function(require,module,exports){
 (function (process,global,Buffer){
 'use strict';
 
@@ -14888,7 +15842,7 @@ function oldBrowser() {
 }
 
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer)
-},{"_process":152,"buffer":4}],149:[function(require,module,exports){
+},{"_process":154,"buffer":6}],151:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -15191,7 +16145,7 @@ function isUndefined(arg) {
   return arg === void 0;
 }
 
-},{}],150:[function(require,module,exports){
+},{}],152:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -15216,12 +16170,12 @@ if (typeof Object.create === 'function') {
   }
 }
 
-},{}],151:[function(require,module,exports){
+},{}],153:[function(require,module,exports){
 module.exports = Array.isArray || function (arr) {
   return Object.prototype.toString.call(arr) == '[object Array]';
 };
 
-},{}],152:[function(require,module,exports){
+},{}],154:[function(require,module,exports){
 // shim for using process in browser
 
 var process = module.exports = {};
@@ -15313,10 +16267,10 @@ process.chdir = function (dir) {
 };
 process.umask = function() { return 0; };
 
-},{}],153:[function(require,module,exports){
+},{}],155:[function(require,module,exports){
 module.exports = require("./lib/_stream_duplex.js")
 
-},{"./lib/_stream_duplex.js":154}],154:[function(require,module,exports){
+},{"./lib/_stream_duplex.js":156}],156:[function(require,module,exports){
 (function (process){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -15409,7 +16363,7 @@ function forEach (xs, f) {
 }
 
 }).call(this,require('_process'))
-},{"./_stream_readable":156,"./_stream_writable":158,"_process":152,"core-util-is":159,"inherits":150}],155:[function(require,module,exports){
+},{"./_stream_readable":158,"./_stream_writable":160,"_process":154,"core-util-is":161,"inherits":152}],157:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -15457,7 +16411,7 @@ PassThrough.prototype._transform = function(chunk, encoding, cb) {
   cb(null, chunk);
 };
 
-},{"./_stream_transform":157,"core-util-is":159,"inherits":150}],156:[function(require,module,exports){
+},{"./_stream_transform":159,"core-util-is":161,"inherits":152}],158:[function(require,module,exports){
 (function (process){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -16412,7 +17366,7 @@ function indexOf (xs, x) {
 }
 
 }).call(this,require('_process'))
-},{"./_stream_duplex":154,"_process":152,"buffer":4,"core-util-is":159,"events":149,"inherits":150,"isarray":151,"stream":164,"string_decoder/":165,"util":3}],157:[function(require,module,exports){
+},{"./_stream_duplex":156,"_process":154,"buffer":6,"core-util-is":161,"events":151,"inherits":152,"isarray":153,"stream":166,"string_decoder/":167,"util":5}],159:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -16623,7 +17577,7 @@ function done(stream, er) {
   return stream.push(null);
 }
 
-},{"./_stream_duplex":154,"core-util-is":159,"inherits":150}],158:[function(require,module,exports){
+},{"./_stream_duplex":156,"core-util-is":161,"inherits":152}],160:[function(require,module,exports){
 (function (process){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -17104,7 +18058,7 @@ function endWritable(stream, state, cb) {
 }
 
 }).call(this,require('_process'))
-},{"./_stream_duplex":154,"_process":152,"buffer":4,"core-util-is":159,"inherits":150,"stream":164}],159:[function(require,module,exports){
+},{"./_stream_duplex":156,"_process":154,"buffer":6,"core-util-is":161,"inherits":152,"stream":166}],161:[function(require,module,exports){
 (function (Buffer){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -17214,10 +18168,10 @@ function objectToString(o) {
   return Object.prototype.toString.call(o);
 }
 }).call(this,require("buffer").Buffer)
-},{"buffer":4}],160:[function(require,module,exports){
+},{"buffer":6}],162:[function(require,module,exports){
 module.exports = require("./lib/_stream_passthrough.js")
 
-},{"./lib/_stream_passthrough.js":155}],161:[function(require,module,exports){
+},{"./lib/_stream_passthrough.js":157}],163:[function(require,module,exports){
 exports = module.exports = require('./lib/_stream_readable.js');
 exports.Stream = require('stream');
 exports.Readable = exports;
@@ -17226,13 +18180,13 @@ exports.Duplex = require('./lib/_stream_duplex.js');
 exports.Transform = require('./lib/_stream_transform.js');
 exports.PassThrough = require('./lib/_stream_passthrough.js');
 
-},{"./lib/_stream_duplex.js":154,"./lib/_stream_passthrough.js":155,"./lib/_stream_readable.js":156,"./lib/_stream_transform.js":157,"./lib/_stream_writable.js":158,"stream":164}],162:[function(require,module,exports){
+},{"./lib/_stream_duplex.js":156,"./lib/_stream_passthrough.js":157,"./lib/_stream_readable.js":158,"./lib/_stream_transform.js":159,"./lib/_stream_writable.js":160,"stream":166}],164:[function(require,module,exports){
 module.exports = require("./lib/_stream_transform.js")
 
-},{"./lib/_stream_transform.js":157}],163:[function(require,module,exports){
+},{"./lib/_stream_transform.js":159}],165:[function(require,module,exports){
 module.exports = require("./lib/_stream_writable.js")
 
-},{"./lib/_stream_writable.js":158}],164:[function(require,module,exports){
+},{"./lib/_stream_writable.js":160}],166:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -17361,7 +18315,7 @@ Stream.prototype.pipe = function(dest, options) {
   return dest;
 };
 
-},{"events":149,"inherits":150,"readable-stream/duplex.js":153,"readable-stream/passthrough.js":160,"readable-stream/readable.js":161,"readable-stream/transform.js":162,"readable-stream/writable.js":163}],165:[function(require,module,exports){
+},{"events":151,"inherits":152,"readable-stream/duplex.js":155,"readable-stream/passthrough.js":162,"readable-stream/readable.js":163,"readable-stream/transform.js":164,"readable-stream/writable.js":165}],167:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -17584,7 +18538,7 @@ function base64DetectIncompleteChar(buffer) {
   this.charLength = this.charReceived ? 3 : 0;
 }
 
-},{"buffer":4}],166:[function(require,module,exports){
+},{"buffer":6}],168:[function(require,module,exports){
 var indexOf = require('indexof');
 
 var Object_keys = function (obj) {
@@ -17724,7 +18678,7 @@ exports.createContext = Script.createContext = function (context) {
     return copy;
 };
 
-},{"indexof":167}],167:[function(require,module,exports){
+},{"indexof":169}],169:[function(require,module,exports){
 
 var indexOf = [].indexOf;
 
@@ -17735,958 +18689,4 @@ module.exports = function(arr, obj){
   }
   return -1;
 };
-},{}],168:[function(require,module,exports){
-/*jshint evil:true, onevar:false*/
-/*global define*/
-var installedColorSpaces = [],
-    namedColors = {},
-    undef = function (obj) {
-        return typeof obj === 'undefined';
-    },
-    channelRegExp = /\s*(\.\d+|\d+(?:\.\d+)?)(%)?\s*/,
-    percentageChannelRegExp = /\s*(\.\d+|100|\d?\d(?:\.\d+)?)%\s*/,
-    alphaChannelRegExp = /\s*(\.\d+|\d+(?:\.\d+)?)\s*/,
-    cssColorRegExp = new RegExp(
-                         "^(rgb|hsl|hsv)a?" +
-                         "\\(" +
-                             channelRegExp.source + "," +
-                             channelRegExp.source + "," +
-                             channelRegExp.source +
-                             "(?:," + alphaChannelRegExp.source + ")?" +
-                         "\\)$", "i");
-
-function ONECOLOR(obj) {
-    if (Object.prototype.toString.apply(obj) === '[object Array]') {
-        if (typeof obj[0] === 'string' && typeof ONECOLOR[obj[0]] === 'function') {
-            // Assumed array from .toJSON()
-            return new ONECOLOR[obj[0]](obj.slice(1, obj.length));
-        } else if (obj.length === 4) {
-            // Assumed 4 element int RGB array from canvas with all channels [0;255]
-            return new ONECOLOR.RGB(obj[0] / 255, obj[1] / 255, obj[2] / 255, obj[3] / 255);
-        }
-    } else if (typeof obj === 'string') {
-        var lowerCased = obj.toLowerCase();
-        if (namedColors[lowerCased]) {
-            obj = '#' + namedColors[lowerCased];
-        }
-        if (lowerCased === 'transparent') {
-            obj = 'rgba(0,0,0,0)';
-        }
-        // Test for CSS rgb(....) string
-        var matchCssSyntax = obj.match(cssColorRegExp);
-        if (matchCssSyntax) {
-            var colorSpaceName = matchCssSyntax[1].toUpperCase(),
-                alpha = undef(matchCssSyntax[8]) ? matchCssSyntax[8] : parseFloat(matchCssSyntax[8]),
-                hasHue = colorSpaceName[0] === 'H',
-                firstChannelDivisor = matchCssSyntax[3] ? 100 : (hasHue ? 360 : 255),
-                secondChannelDivisor = (matchCssSyntax[5] || hasHue) ? 100 : 255,
-                thirdChannelDivisor = (matchCssSyntax[7] || hasHue) ? 100 : 255;
-            if (undef(ONECOLOR[colorSpaceName])) {
-                throw new Error("one.color." + colorSpaceName + " is not installed.");
-            }
-            return new ONECOLOR[colorSpaceName](
-                parseFloat(matchCssSyntax[2]) / firstChannelDivisor,
-                parseFloat(matchCssSyntax[4]) / secondChannelDivisor,
-                parseFloat(matchCssSyntax[6]) / thirdChannelDivisor,
-                alpha
-            );
-        }
-        // Assume hex syntax
-        if (obj.length < 6) {
-            // Allow CSS shorthand
-            obj = obj.replace(/^#?([0-9a-f])([0-9a-f])([0-9a-f])$/i, '$1$1$2$2$3$3');
-        }
-        // Split obj into red, green, and blue components
-        var hexMatch = obj.match(/^#?([0-9a-f][0-9a-f])([0-9a-f][0-9a-f])([0-9a-f][0-9a-f])$/i);
-        if (hexMatch) {
-            return new ONECOLOR.RGB(
-                parseInt(hexMatch[1], 16) / 255,
-                parseInt(hexMatch[2], 16) / 255,
-                parseInt(hexMatch[3], 16) / 255
-            );
-        }
-
-        // No match so far. Lets try the less likely ones
-        if (ONECOLOR.CMYK) {
-            var cmykMatch = obj.match(new RegExp(
-                             "^cmyk" +
-                             "\\(" +
-                                 percentageChannelRegExp.source + "," +
-                                 percentageChannelRegExp.source + "," +
-                                 percentageChannelRegExp.source + "," +
-                                 percentageChannelRegExp.source +
-                             "\\)$", "i"));
-            if (cmykMatch) {
-                return new ONECOLOR.CMYK(
-                    parseFloat(cmykMatch[1]) / 100,
-                    parseFloat(cmykMatch[2]) / 100,
-                    parseFloat(cmykMatch[3]) / 100,
-                    parseFloat(cmykMatch[4]) / 100
-                );
-            }
-        }
-    } else if (typeof obj === 'object' && obj.isColor) {
-        return obj;
-    }
-    return false;
-}
-
-function installColorSpace(colorSpaceName, propertyNames, config) {
-    ONECOLOR[colorSpaceName] = new Function(propertyNames.join(","),
-        // Allow passing an array to the constructor:
-        "if (Object.prototype.toString.apply(" + propertyNames[0] + ") === '[object Array]') {" +
-            propertyNames.map(function (propertyName, i) {
-                return propertyName + "=" + propertyNames[0] + "[" + i + "];";
-            }).reverse().join("") +
-        "}" +
-        "if (" + propertyNames.filter(function (propertyName) {
-            return propertyName !== 'alpha';
-        }).map(function (propertyName) {
-            return "isNaN(" + propertyName + ")";
-        }).join("||") + "){" + "throw new Error(\"[" + colorSpaceName + "]: Invalid color: (\"+" + propertyNames.join("+\",\"+") + "+\")\");}" +
-        propertyNames.map(function (propertyName) {
-            if (propertyName === 'hue') {
-                return "this._hue=hue<0?hue-Math.floor(hue):hue%1"; // Wrap
-            } else if (propertyName === 'alpha') {
-                return "this._alpha=(isNaN(alpha)||alpha>1)?1:(alpha<0?0:alpha);";
-            } else {
-                return "this._" + propertyName + "=" + propertyName + "<0?0:(" + propertyName + ">1?1:" + propertyName + ")";
-            }
-        }).join(";") + ";"
-    );
-    ONECOLOR[colorSpaceName].propertyNames = propertyNames;
-
-    var prototype = ONECOLOR[colorSpaceName].prototype;
-
-    ['valueOf', 'hex', 'hexa', 'css', 'cssa'].forEach(function (methodName) {
-        prototype[methodName] = prototype[methodName] || (colorSpaceName === 'RGB' ? prototype.hex : new Function("return this.rgb()." + methodName + "();"));
-    });
-
-    prototype.isColor = true;
-
-    prototype.equals = function (otherColor, epsilon) {
-        if (undef(epsilon)) {
-            epsilon = 1e-10;
-        }
-
-        otherColor = otherColor[colorSpaceName.toLowerCase()]();
-
-        for (var i = 0; i < propertyNames.length; i = i + 1) {
-            if (Math.abs(this['_' + propertyNames[i]] - otherColor['_' + propertyNames[i]]) > epsilon) {
-                return false;
-            }
-        }
-
-        return true;
-    };
-
-    prototype.toJSON = new Function(
-        "return ['" + colorSpaceName + "', " +
-            propertyNames.map(function (propertyName) {
-                return "this._" + propertyName;
-            }, this).join(", ") +
-        "];"
-    );
-
-    for (var propertyName in config) {
-        if (config.hasOwnProperty(propertyName)) {
-            var matchFromColorSpace = propertyName.match(/^from(.*)$/);
-            if (matchFromColorSpace) {
-                ONECOLOR[matchFromColorSpace[1].toUpperCase()].prototype[colorSpaceName.toLowerCase()] = config[propertyName];
-            } else {
-                prototype[propertyName] = config[propertyName];
-            }
-        }
-    }
-
-    // It is pretty easy to implement the conversion to the same color space:
-    prototype[colorSpaceName.toLowerCase()] = function () {
-        return this;
-    };
-    prototype.toString = new Function("return \"[one.color." + colorSpaceName + ":\"+" + propertyNames.map(function (propertyName, i) {
-        return "\" " + propertyNames[i] + "=\"+this._" + propertyName;
-    }).join("+") + "+\"]\";");
-
-    // Generate getters and setters
-    propertyNames.forEach(function (propertyName, i) {
-        prototype[propertyName] = prototype[propertyName === 'black' ? 'k' : propertyName[0]] = new Function("value", "isDelta",
-            // Simple getter mode: color.red()
-            "if (typeof value === 'undefined') {" +
-                "return this._" + propertyName + ";" +
-            "}" +
-            // Adjuster: color.red(+.2, true)
-            "if (isDelta) {" +
-                "return new this.constructor(" + propertyNames.map(function (otherPropertyName, i) {
-                    return "this._" + otherPropertyName + (propertyName === otherPropertyName ? "+value" : "");
-                }).join(", ") + ");" +
-            "}" +
-            // Setter: color.red(.2);
-            "return new this.constructor(" + propertyNames.map(function (otherPropertyName, i) {
-                return propertyName === otherPropertyName ? "value" : "this._" + otherPropertyName;
-            }).join(", ") + ");");
-    });
-
-    function installForeignMethods(targetColorSpaceName, sourceColorSpaceName) {
-        var obj = {};
-        obj[sourceColorSpaceName.toLowerCase()] = new Function("return this.rgb()." + sourceColorSpaceName.toLowerCase() + "();"); // Fallback
-        ONECOLOR[sourceColorSpaceName].propertyNames.forEach(function (propertyName, i) {
-            obj[propertyName] = obj[propertyName === 'black' ? 'k' : propertyName[0]] = new Function("value", "isDelta", "return this." + sourceColorSpaceName.toLowerCase() + "()." + propertyName + "(value, isDelta);");
-        });
-        for (var prop in obj) {
-            if (obj.hasOwnProperty(prop) && ONECOLOR[targetColorSpaceName].prototype[prop] === undefined) {
-                ONECOLOR[targetColorSpaceName].prototype[prop] = obj[prop];
-            }
-        }
-    }
-
-    installedColorSpaces.forEach(function (otherColorSpaceName) {
-        installForeignMethods(colorSpaceName, otherColorSpaceName);
-        installForeignMethods(otherColorSpaceName, colorSpaceName);
-    });
-
-    installedColorSpaces.push(colorSpaceName);
-}
-
-ONECOLOR.installMethod = function (name, fn) {
-    installedColorSpaces.forEach(function (colorSpace) {
-        ONECOLOR[colorSpace].prototype[name] = fn;
-    });
-};
-
-installColorSpace('RGB', ['red', 'green', 'blue', 'alpha'], {
-    hex: function () {
-        var hexString = (Math.round(255 * this._red) * 0x10000 + Math.round(255 * this._green) * 0x100 + Math.round(255 * this._blue)).toString(16);
-        return '#' + ('00000'.substr(0, 6 - hexString.length)) + hexString;
-    },
-
-    hexa: function () {
-        var alphaString = Math.round(this._alpha * 255).toString(16);
-        return '#' + '00'.substr(0, 2 - alphaString.length) + alphaString + this.hex().substr(1, 6);
-    },
-
-    css: function () {
-        return "rgb(" + Math.round(255 * this._red) + "," + Math.round(255 * this._green) + "," + Math.round(255 * this._blue) + ")";
-    },
-
-    cssa: function () {
-        return "rgba(" + Math.round(255 * this._red) + "," + Math.round(255 * this._green) + "," + Math.round(255 * this._blue) + "," + this._alpha + ")";
-    }
-});
-if (typeof define === 'function' && !undef(define.amd)) {
-    define(function () {
-        return ONECOLOR;
-    });
-} else if (typeof exports === 'object') {
-    // Node module export
-    module.exports = ONECOLOR;
-} else {
-    one = window.one || {};
-    one.color = ONECOLOR;
-}
-
-if (typeof jQuery !== 'undefined' && undef(jQuery.color)) {
-    jQuery.color = ONECOLOR;
-}
-
-/*global namedColors*/
-namedColors = {
-    aliceblue: 'f0f8ff',
-    antiquewhite: 'faebd7',
-    aqua: '0ff',
-    aquamarine: '7fffd4',
-    azure: 'f0ffff',
-    beige: 'f5f5dc',
-    bisque: 'ffe4c4',
-    black: '000',
-    blanchedalmond: 'ffebcd',
-    blue: '00f',
-    blueviolet: '8a2be2',
-    brown: 'a52a2a',
-    burlywood: 'deb887',
-    cadetblue: '5f9ea0',
-    chartreuse: '7fff00',
-    chocolate: 'd2691e',
-    coral: 'ff7f50',
-    cornflowerblue: '6495ed',
-    cornsilk: 'fff8dc',
-    crimson: 'dc143c',
-    cyan: '0ff',
-    darkblue: '00008b',
-    darkcyan: '008b8b',
-    darkgoldenrod: 'b8860b',
-    darkgray: 'a9a9a9',
-    darkgrey: 'a9a9a9',
-    darkgreen: '006400',
-    darkkhaki: 'bdb76b',
-    darkmagenta: '8b008b',
-    darkolivegreen: '556b2f',
-    darkorange: 'ff8c00',
-    darkorchid: '9932cc',
-    darkred: '8b0000',
-    darksalmon: 'e9967a',
-    darkseagreen: '8fbc8f',
-    darkslateblue: '483d8b',
-    darkslategray: '2f4f4f',
-    darkslategrey: '2f4f4f',
-    darkturquoise: '00ced1',
-    darkviolet: '9400d3',
-    deeppink: 'ff1493',
-    deepskyblue: '00bfff',
-    dimgray: '696969',
-    dimgrey: '696969',
-    dodgerblue: '1e90ff',
-    firebrick: 'b22222',
-    floralwhite: 'fffaf0',
-    forestgreen: '228b22',
-    fuchsia: 'f0f',
-    gainsboro: 'dcdcdc',
-    ghostwhite: 'f8f8ff',
-    gold: 'ffd700',
-    goldenrod: 'daa520',
-    gray: '808080',
-    grey: '808080',
-    green: '008000',
-    greenyellow: 'adff2f',
-    honeydew: 'f0fff0',
-    hotpink: 'ff69b4',
-    indianred: 'cd5c5c',
-    indigo: '4b0082',
-    ivory: 'fffff0',
-    khaki: 'f0e68c',
-    lavender: 'e6e6fa',
-    lavenderblush: 'fff0f5',
-    lawngreen: '7cfc00',
-    lemonchiffon: 'fffacd',
-    lightblue: 'add8e6',
-    lightcoral: 'f08080',
-    lightcyan: 'e0ffff',
-    lightgoldenrodyellow: 'fafad2',
-    lightgray: 'd3d3d3',
-    lightgrey: 'd3d3d3',
-    lightgreen: '90ee90',
-    lightpink: 'ffb6c1',
-    lightsalmon: 'ffa07a',
-    lightseagreen: '20b2aa',
-    lightskyblue: '87cefa',
-    lightslategray: '789',
-    lightslategrey: '789',
-    lightsteelblue: 'b0c4de',
-    lightyellow: 'ffffe0',
-    lime: '0f0',
-    limegreen: '32cd32',
-    linen: 'faf0e6',
-    magenta: 'f0f',
-    maroon: '800000',
-    mediumaquamarine: '66cdaa',
-    mediumblue: '0000cd',
-    mediumorchid: 'ba55d3',
-    mediumpurple: '9370d8',
-    mediumseagreen: '3cb371',
-    mediumslateblue: '7b68ee',
-    mediumspringgreen: '00fa9a',
-    mediumturquoise: '48d1cc',
-    mediumvioletred: 'c71585',
-    midnightblue: '191970',
-    mintcream: 'f5fffa',
-    mistyrose: 'ffe4e1',
-    moccasin: 'ffe4b5',
-    navajowhite: 'ffdead',
-    navy: '000080',
-    oldlace: 'fdf5e6',
-    olive: '808000',
-    olivedrab: '6b8e23',
-    orange: 'ffa500',
-    orangered: 'ff4500',
-    orchid: 'da70d6',
-    palegoldenrod: 'eee8aa',
-    palegreen: '98fb98',
-    paleturquoise: 'afeeee',
-    palevioletred: 'd87093',
-    papayawhip: 'ffefd5',
-    peachpuff: 'ffdab9',
-    peru: 'cd853f',
-    pink: 'ffc0cb',
-    plum: 'dda0dd',
-    powderblue: 'b0e0e6',
-    purple: '800080',
-    rebeccapurple: '639',
-    red: 'f00',
-    rosybrown: 'bc8f8f',
-    royalblue: '4169e1',
-    saddlebrown: '8b4513',
-    salmon: 'fa8072',
-    sandybrown: 'f4a460',
-    seagreen: '2e8b57',
-    seashell: 'fff5ee',
-    sienna: 'a0522d',
-    silver: 'c0c0c0',
-    skyblue: '87ceeb',
-    slateblue: '6a5acd',
-    slategray: '708090',
-    slategrey: '708090',
-    snow: 'fffafa',
-    springgreen: '00ff7f',
-    steelblue: '4682b4',
-    tan: 'd2b48c',
-    teal: '008080',
-    thistle: 'd8bfd8',
-    tomato: 'ff6347',
-    turquoise: '40e0d0',
-    violet: 'ee82ee',
-    wheat: 'f5deb3',
-    white: 'fff',
-    whitesmoke: 'f5f5f5',
-    yellow: 'ff0',
-    yellowgreen: '9acd32'
-};
-
-/*global INCLUDE, installColorSpace, ONECOLOR*/
-
-installColorSpace('XYZ', ['x', 'y', 'z', 'alpha'], {
-    fromRgb: function () {
-        // http://www.easyrgb.com/index.php?X=MATH&H=02#text2
-        var convert = function (channel) {
-                return channel > 0.04045 ?
-                    Math.pow((channel + 0.055) / 1.055, 2.4) :
-                    channel / 12.92;
-            },
-            r = convert(this._red),
-            g = convert(this._green),
-            b = convert(this._blue);
-
-        // Reference white point sRGB D65:
-        // http://www.brucelindbloom.com/index.html?Eqn_RGB_XYZ_Matrix.html
-        return new ONECOLOR.XYZ(
-            r * 0.4124564 + g * 0.3575761 + b * 0.1804375,
-            r * 0.2126729 + g * 0.7151522 + b * 0.0721750,
-            r * 0.0193339 + g * 0.1191920 + b * 0.9503041,
-            this._alpha
-        );
-    },
-
-    rgb: function () {
-        // http://www.easyrgb.com/index.php?X=MATH&H=01#text1
-        var x = this._x,
-            y = this._y,
-            z = this._z,
-            convert = function (channel) {
-                return channel > 0.0031308 ?
-                    1.055 * Math.pow(channel, 1 / 2.4) - 0.055 :
-                    12.92 * channel;
-            };
-
-        // Reference white point sRGB D65:
-        // http://www.brucelindbloom.com/index.html?Eqn_RGB_XYZ_Matrix.html
-        return new ONECOLOR.RGB(
-            convert(x *  3.2404542 + y * -1.5371385 + z * -0.4985314),
-            convert(x * -0.9692660 + y *  1.8760108 + z *  0.0415560),
-            convert(x *  0.0556434 + y * -0.2040259 + z *  1.0572252),
-            this._alpha
-        );
-    },
-
-    lab: function () {
-        // http://www.easyrgb.com/index.php?X=MATH&H=07#text7
-        var convert = function (channel) {
-                return channel > 0.008856 ?
-                    Math.pow(channel, 1 / 3) :
-                    7.787037 * channel + 4 / 29;
-            },
-            x = convert(this._x /  95.047),
-            y = convert(this._y / 100.000),
-            z = convert(this._z / 108.883);
-
-        return new ONECOLOR.LAB(
-            (116 * y) - 16,
-            500 * (x - y),
-            200 * (y - z),
-            this._alpha
-        );
-    }
-});
-
-/*global INCLUDE, installColorSpace, ONECOLOR*/
-
-installColorSpace('LAB', ['l', 'a', 'b', 'alpha'], {
-    fromRgb: function () {
-        return this.xyz().lab();
-    },
-
-    rgb: function () {
-        return this.xyz().rgb();
-    },
-
-    xyz: function () {
-        // http://www.easyrgb.com/index.php?X=MATH&H=08#text8
-        var convert = function (channel) {
-                var pow = Math.pow(channel, 3);
-                return pow > 0.008856 ?
-                    pow :
-                    (channel - 16 / 116) / 7.87;
-            },
-            y = (this._l + 16) / 116,
-            x = this._a / 500 + y,
-            z = y - this._b / 200;
-
-        return new ONECOLOR.XYZ(
-            convert(x) *  95.047,
-            convert(y) * 100.000,
-            convert(z) * 108.883,
-            this._alpha
-        );
-    }
-});
-
-/*global one*/
-
-installColorSpace('HSV', ['hue', 'saturation', 'value', 'alpha'], {
-    rgb: function () {
-        var hue = this._hue,
-            saturation = this._saturation,
-            value = this._value,
-            i = Math.min(5, Math.floor(hue * 6)),
-            f = hue * 6 - i,
-            p = value * (1 - saturation),
-            q = value * (1 - f * saturation),
-            t = value * (1 - (1 - f) * saturation),
-            red,
-            green,
-            blue;
-        switch (i) {
-        case 0:
-            red = value;
-            green = t;
-            blue = p;
-            break;
-        case 1:
-            red = q;
-            green = value;
-            blue = p;
-            break;
-        case 2:
-            red = p;
-            green = value;
-            blue = t;
-            break;
-        case 3:
-            red = p;
-            green = q;
-            blue = value;
-            break;
-        case 4:
-            red = t;
-            green = p;
-            blue = value;
-            break;
-        case 5:
-            red = value;
-            green = p;
-            blue = q;
-            break;
-        }
-        return new ONECOLOR.RGB(red, green, blue, this._alpha);
-    },
-
-    hsl: function () {
-        var l = (2 - this._saturation) * this._value,
-            sv = this._saturation * this._value,
-            svDivisor = l <= 1 ? l : (2 - l),
-            saturation;
-
-        // Avoid division by zero when lightness approaches zero:
-        if (svDivisor < 1e-9) {
-            saturation = 0;
-        } else {
-            saturation = sv / svDivisor;
-        }
-        return new ONECOLOR.HSL(this._hue, saturation, l / 2, this._alpha);
-    },
-
-    fromRgb: function () { // Becomes one.color.RGB.prototype.hsv
-        var red = this._red,
-            green = this._green,
-            blue = this._blue,
-            max = Math.max(red, green, blue),
-            min = Math.min(red, green, blue),
-            delta = max - min,
-            hue,
-            saturation = (max === 0) ? 0 : (delta / max),
-            value = max;
-        if (delta === 0) {
-            hue = 0;
-        } else {
-            switch (max) {
-            case red:
-                hue = (green - blue) / delta / 6 + (green < blue ? 1 : 0);
-                break;
-            case green:
-                hue = (blue - red) / delta / 6 + 1 / 3;
-                break;
-            case blue:
-                hue = (red - green) / delta / 6 + 2 / 3;
-                break;
-            }
-        }
-        return new ONECOLOR.HSV(hue, saturation, value, this._alpha);
-    }
-});
-
-/*global one*/
-
-
-installColorSpace('HSL', ['hue', 'saturation', 'lightness', 'alpha'], {
-    hsv: function () {
-        // Algorithm adapted from http://wiki.secondlife.com/wiki/Color_conversion_scripts
-        var l = this._lightness * 2,
-            s = this._saturation * ((l <= 1) ? l : 2 - l),
-            saturation;
-
-        // Avoid division by zero when l + s is very small (approaching black):
-        if (l + s < 1e-9) {
-            saturation = 0;
-        } else {
-            saturation = (2 * s) / (l + s);
-        }
-
-        return new ONECOLOR.HSV(this._hue, saturation, (l + s) / 2, this._alpha);
-    },
-
-    rgb: function () {
-        return this.hsv().rgb();
-    },
-
-    fromRgb: function () { // Becomes one.color.RGB.prototype.hsv
-        return this.hsv().hsl();
-    }
-});
-
-/*global one*/
-
-installColorSpace('CMYK', ['cyan', 'magenta', 'yellow', 'black', 'alpha'], {
-    rgb: function () {
-        return new ONECOLOR.RGB((1 - this._cyan * (1 - this._black) - this._black),
-                                 (1 - this._magenta * (1 - this._black) - this._black),
-                                 (1 - this._yellow * (1 - this._black) - this._black),
-                                 this._alpha);
-    },
-
-    fromRgb: function () { // Becomes one.color.RGB.prototype.cmyk
-        // Adapted from http://www.javascripter.net/faq/rgb2cmyk.htm
-        var red = this._red,
-            green = this._green,
-            blue = this._blue,
-            cyan = 1 - red,
-            magenta = 1 - green,
-            yellow = 1 - blue,
-            black = 1;
-        if (red || green || blue) {
-            black = Math.min(cyan, Math.min(magenta, yellow));
-            cyan = (cyan - black) / (1 - black);
-            magenta = (magenta - black) / (1 - black);
-            yellow = (yellow - black) / (1 - black);
-        } else {
-            black = 1;
-        }
-        return new ONECOLOR.CMYK(cyan, magenta, yellow, black, this._alpha);
-    }
-});
-
-ONECOLOR.installMethod('clearer', function (amount) {
-    return this.alpha(isNaN(amount) ? -0.1 : -amount, true);
-});
-
-
-ONECOLOR.installMethod('darken', function (amount) {
-    return this.lightness(isNaN(amount) ? -0.1 : -amount, true);
-});
-
-
-ONECOLOR.installMethod('desaturate', function (amount) {
-    return this.saturation(isNaN(amount) ? -0.1 : -amount, true);
-});
-
-function gs () {
-    var rgb = this.rgb(),
-        val = rgb._red * 0.3 + rgb._green * 0.59 + rgb._blue * 0.11;
-
-    return new ONECOLOR.RGB(val, val, val, this._alpha);
-};
-
-ONECOLOR.installMethod('greyscale', gs);
-ONECOLOR.installMethod('grayscale', gs);
-
-
-ONECOLOR.installMethod('lighten', function (amount) {
-    return this.lightness(isNaN(amount) ? 0.1 : amount, true);
-});
-
-ONECOLOR.installMethod('mix', function (otherColor, weight) {
-    otherColor = ONECOLOR(otherColor).rgb();
-    weight = 1 - (isNaN(weight) ? 0.5 : weight);
-
-    var w = weight * 2 - 1,
-        a = this._alpha - otherColor._alpha,
-        weight1 = (((w * a === -1) ? w : (w + a) / (1 + w * a)) + 1) / 2,
-        weight2 = 1 - weight1,
-        rgb = this.rgb();
-
-    return new ONECOLOR.RGB(
-        rgb._red * weight1 + otherColor._red * weight2,
-        rgb._green * weight1 + otherColor._green * weight2,
-        rgb._blue * weight1 + otherColor._blue * weight2,
-        rgb._alpha * weight + otherColor._alpha * (1 - weight)
-    );
-});
-
-ONECOLOR.installMethod('negate', function () {
-    var rgb = this.rgb();
-    return new ONECOLOR.RGB(1 - rgb._red, 1 - rgb._green, 1 - rgb._blue, this._alpha);
-});
-
-ONECOLOR.installMethod('opaquer', function (amount) {
-    return this.alpha(isNaN(amount) ? 0.1 : amount, true);
-});
-
-ONECOLOR.installMethod('rotate', function (degrees) {
-    return this.hue((degrees || 0) / 360, true);
-});
-
-
-ONECOLOR.installMethod('saturate', function (amount) {
-    return this.saturation(isNaN(amount) ? 0.1 : amount, true);
-});
-
-// Adapted from http://gimp.sourcearchive.com/documentation/2.6.6-1ubuntu1/color-to-alpha_8c-source.html
-/*
-    toAlpha returns a color where the values of the argument have been converted to alpha
-*/
-ONECOLOR.installMethod('toAlpha', function (color) {
-    var me = this.rgb(),
-        other = ONECOLOR(color).rgb(),
-        epsilon = 1e-10,
-        a = new ONECOLOR.RGB(0, 0, 0, me._alpha),
-        channels = ['_red', '_green', '_blue'];
-
-    channels.forEach(function (channel) {
-        if (me[channel] < epsilon) {
-            a[channel] = me[channel];
-        } else if (me[channel] > other[channel]) {
-            a[channel] = (me[channel] - other[channel]) / (1 - other[channel]);
-        } else if (me[channel] > other[channel]) {
-            a[channel] = (other[channel] - me[channel]) / other[channel];
-        } else {
-            a[channel] = 0;
-        }
-    });
-
-    if (a._red > a._green) {
-        if (a._red > a._blue) {
-            me._alpha = a._red;
-        } else {
-            me._alpha = a._blue;
-        }
-    } else if (a._green > a._blue) {
-        me._alpha = a._green;
-    } else {
-        me._alpha = a._blue;
-    }
-
-    if (me._alpha < epsilon) {
-        return me;
-    }
-
-    channels.forEach(function (channel) {
-        me[channel] = (me[channel] - other[channel]) / me._alpha + other[channel];
-    });
-    me._alpha *= a._alpha;
-
-    return me;
-});
-
-/*global one*/
-
-// This file is purely for the build system
-
-// Order is important to prevent channel name clashes. Lab <-> hsL
-
-// Convenience functions
-
-
-},{}],169:[function(require,module,exports){
-var md5 = require("./md5.js"),
-    color = require("onecolor");
-
-var hsv2rgb = function(h, s, v) {
-    return (new color.HSV(h/255, s/255 , v/255)).hex();
-};
-
-var getFrontColor = function(h, i) {
-    i = i % 10;
-    return hsv2rgb(h, 200 - i * 10, 120 + i);
-};
-
-var getBackColor = function(h) {
-    return hsv2rgb(h, 200, 90); 
-};
-
-var getAccentColor = function(h, i) {
-    i = i % 5;
-    return hsv2rgb(h, (i + 2) * 5, i * 5 + 220);
-};
-
-var createParams = function(title) {
-    var hash = md5.md5(title);
-    var p1 = title.length % 256;
-    var p2 = parseInt(hash.slice(0, 2), 16);
-    var p3 = parseInt(hash.slice(2, 4), 16);
-    var p4 = parseInt(hash.slice(4, 6), 16);
-    var p5 = parseInt(hash.slice(6, 8), 16);
-    var p6 = parseInt(hash.slice(8, 10), 16);
-    return [p1, p2, p3, p4, p5, p6];
-};
-
-var charcount = function(str){
-  len = 0;
-  str = escape(str);
-  for (i=0; i<str.length; i++, len++) {
-    if (str.charAt(i) == "%") {
-      if (str.charAt(++i) == "u") {
-        i += 3;
-        len++;
-      }
-      i++;
-    }
-  }
-  return len;
-}
-
-exports.draw = function(canvas, title, brand) {
-    title = title || "";
-    brand = brand || "";
-    params = createParams(title); 
-    var p1 = params[0];
-    var p2 = params[1];
-    var p3 = params[2];
-    var p4 = params[3];
-    var p5 = params[4];
-    var p6 = params[5];
-
-    var bright_style = canvas.createGradient({
-        x1: 0, y1: 0,
-        x2: 1200/2, y2: 630/3*2,
-        c1: "rgba(255, 255, 255, 0.1)", s1: 0.43,
-        c2: "rgba(255, 255, 255, 0.2)", s2: 0.97
-    });
-
-    canvas.clearCanvas(); 
-    var h = (p3 + (p1 + p2) * 7) % 256;
-
-    // Background
-    canvas.drawRect({
-        fillStyle: getBackColor(h),
-        x: 1200/2, y: 630/2,
-        width: 1200,
-        height: 630,
-        cornerRadius: 5,
-        mask: true,
-    });
-
-    // Small Bubbles
-    var bubble_count = (p1 + p2 + p3) % 50 + 80;
-    for (var i =1; i < bubble_count; i++) {
-        var x = ((i + p1) * (i + p4)) % 1200;
-        var y = ((i + p2) * (i + p5)) % 630;
-        var box_size = (630 - y)/8 - i/10;
-        canvas.drawRect({
-            fillStyle: getFrontColor(h, i),
-            x: x, y: y,
-            width: box_size,
-            height:box_size,
-            cornerRadius: 50
-        });
-    }
-
-    // Large Bubbles
-    var large_bubble_count = (p1 + p2 + p3) % 2 + 3;
-    for (var i =1; i <= large_bubble_count; i++) {
-        var x = (i * (300 + p4 - p5) + i * p2) % (1200 - 100) + 50;
-        var y = ((i + p4) * (i + p2)) % (630 - 50);
-        var box_size = (630 - y + 100) / 2;
-        canvas.drawRect({
-            fillStyle: getAccentColor(h, i),
-            x:x, y:y,
-            width: box_size,
-            height: box_size,
-            cornerRadius: 415
-        });
-    }
-
-    // Title background
-    canvas.drawRect({
-        fillStyle: "rgba(0, 0, 0, 0.8)",
-        x: 1200/2,
-        y: 630 - 70,
-        width: 1200,
-        height: 140
-    });
-
-    // Brand
-    canvas.drawText({
-        fillStyle: "#ffffff",
-        x: 1200/2,
-        y: (630 - 140)/2,
-	shadowColor: getBackColor(h),
-  	shadowBlur: 5,
-	shadowX: 3, shadowY: 3,
-        fontSize: (1200 - 100) / (charcount(brand)/2 + 2),
-        fontFamily: "'Noto Sans CJK JP Black', 'Noto Sans Japanese'",
-        fontWeight: 900,
-        text: brand,
-    });
-    // Title
-    canvas.drawText({
-        fillStyle: "#ffffff",
-        x: 1200/2,
-        y: 630 - 70,
-        fontSize: (1200 - 50) / (charcount(title)/2 + 10),
-        fontFamily: "'Noto Sans Japanese'",
-        fontWeight: 900,
-        text: title,
-    });
-
-    // hashtag
-    canvas.drawText({
-        fillStyle: "#ffffff",
-        x: 1200 - 50,
-        y: 630 - 10,
-        fontSize: 12,
-        fontFamily: "'Noto Sans Japanese'",
-        text: "#unique_ogp",
-    });
-
-    //Brightness 
-    canvas.drawPath({
-        fillStyle: bright_style,
-        strokeWidth: 0,
-        p1: {
-            type: 'line',
-            x1: 0, y1: 0,
-            x2: 0, y2:630 - 50,
-        },
-        p2: {
-            type: 'quadratic',
-            cx1: 1200/2, cy1: 120,
-            x2: 1200, y2: 80
-        },
-        p3: {
-            type: 'line',
-            x1: 1200, y1: 80,
-            x2: 1200, y2: 0,
-            x3: 0, y3: 0
-        }
-    });
-    
-    return canvas;
-};
-
-},{"./md5.js":2,"onecolor":168}]},{},[1]);
+},{}]},{},[1]);

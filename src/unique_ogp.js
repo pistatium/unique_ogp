@@ -125,7 +125,7 @@ exports.draw = function(canvas, title, brand) {
 	shadowX: 3, shadowY: 3,
         fontSize: (1200 - 100) / (charcount(brand)/2 + 2),
         fontFamily: "'Noto Sans CJK JP Black', 'Noto Sans Japanese'",
-        fontWeight: 900,
+        fontWeight: 800,
         text: brand,
     });
     // Title
@@ -135,7 +135,7 @@ exports.draw = function(canvas, title, brand) {
         y: 630 - 70,
         fontSize: (1200 - 50) / (charcount(title)/2 + 10),
         fontFamily: "'Noto Sans CJK JP Black', 'Noto Sans Japanese'",
-        fontWeight: 900,
+        fontWeight: 800,
         text: title,
     });
 
