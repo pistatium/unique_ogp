@@ -25,6 +25,11 @@ This returns an image of the size suitable for OGP image of Facebook when you gi
 
 --
 
+## Online Demo
+[http://pistatium.github.io/unique_ogp/](http://pistatium.github.io/unique_ogp/)
+
+You can try to make the OGP image in real time.
+
 ## Setup
 
 __Require__
