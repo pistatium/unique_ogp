@@ -3,6 +3,10 @@
 
 This returns an image of the size suitable for OGP image of Facebook when you give API a letter as input.
 
+## 日本語(Japanese)
+[Qiita: ブログのアイキャッチ、OGP画像を自動生成するツール作ってみた](http://qiita.com/kimihiro_n/items/5d154bcb04665aa09dfe)
+
+
 ## Sample
 
 > /?title=Unique%20OGP
