@@ -24,7 +24,7 @@ http.createServer(function(request, response) {
     title = query["title"];
     brand = query["brand"];
     if (!title) {
-        response.write("?title=好きな文字を入れてリクエストしてください");
+        response.write("Add Query to this page. '?title=$TITLE&brand=$BRAND'");
         return response.end();
     }
     getArticon(title, brand, function(result) {
