@@ -1,7 +1,7 @@
 {
   "name": "node_articon",
   "version": "1.0.1",
-  "description": "",
+  "description": "UniqueOGP automatically produces inherent OGP image from the character string of the title.",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
