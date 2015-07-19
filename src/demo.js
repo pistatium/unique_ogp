@@ -1,4 +1,4 @@
-$(function() {
+var render = function() {
     var unique_ogp = require('./unique_ogp.js');
     var getArticon = function(title, brand) {
       var canvas = $("<canvas />");
@@ -22,4 +22,17 @@ $(function() {
     updateArticon();
     $("#form_title").change(updateArticon);
     $("#form_brand").change(updateArticon);
+};
+
+WebFont.load({
+    custom: {
+        families: ['Noto Sans Japanese'],
+    },
+    active: function() {
+        render();
+    }, 
+    inactive: function() {
+        // fallback
+        render();
+    }
 });

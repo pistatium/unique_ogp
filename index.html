@@ -16,6 +16,7 @@
 
 <title>Unique OGP Demo</title>
 <style>
+    @import url(http://fonts.googleapis.com/css?family=Noto+Sans:700);
     @import url(http://fonts.googleapis.com/earlyaccess/notosansjapanese.css);
     body {
         text-align:center;
@@ -25,7 +26,7 @@
     h1, h2 {
         color: #3b5998;
         font-weight:bold;
-        font-family: 'Noto Sans CJK JP Black', 'Noto Sans Japanese';
+        font-family: 'Noto Sans', sans-serif;
     }
     p {
         margin: 10px 30px;
@@ -53,7 +54,7 @@
         margin: 10px auto;
         padding: 0px;
         border-color: #e9eaed #e9eaed #d1d1d1;
-        box-shadow: 0 0 0 1.5px rgba(0, 0, 0, .1) inset, 0 1px 1px rgba(0, 0, 0, .05);
+        box-shadow: 0 0 0 1.5px rgba(0, 0, 0, .3) inset, 0 1px 1px rgba(0, 0, 0, .05);
     }
     .fb_meta {
         color: #333;
@@ -82,6 +83,10 @@
         line-height: 16px;
         margin: 5px 0px;
     }
+    #canvas {
+        font-size: 30px;
+        line-heignt: 50px;
+    }
     #canvas img {
         width: 100%;
         padding: 0 auto;
@@ -91,6 +96,7 @@
 
 <script src="jquery.min.js"></script>
 <script src="jcanvas.min.js"></script>
+<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/webfont/1/webfont.js"></script>
 <script src="bundle.js"></script>
 <div class="wrapper">
     <h1>Unique OGP Demo</h1>
@@ -104,7 +110,7 @@
     <h2>Demo</h2>
 
     <div class="fb_box">
-        <div class="fb_image" id="canvas"></div>
+        <div class="fb_image" id="canvas">Font Loading..</div>
         <div class="fb_meta">
             <div class="fb_title" id="demo_title"></div>
             <div class="fb_description">

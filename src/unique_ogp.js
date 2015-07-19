@@ -124,8 +124,8 @@ exports.draw = function(canvas, title, brand) {
   	shadowBlur: 5,
 	shadowX: 3, shadowY: 3,
         fontSize: (1200 - 100) / (charcount(brand)/2 + 2),
-        fontFamily: "'Noto Sans CJK JP Black', 'Noto Sans Japanese'",
-        fontWeight: 800,
+        fontFamily: "'Noto Sans CJK JP Black', 'Noto Sans Japanese', 'Noto Sans'",
+        fontWeight: 900,
         text: brand,
     });
     // Title
@@ -134,8 +134,8 @@ exports.draw = function(canvas, title, brand) {
         x: 1200/2,
         y: 630 - 70,
         fontSize: (1200 - 50) / (charcount(title)/2 + 10),
-        fontFamily: "'Noto Sans CJK JP Black', 'Noto Sans Japanese'",
-        fontWeight: 800,
+        fontFamily: "'Noto Sans CJK JP Black', 'Noto Sans Japanese', 'Noto Sans'",
+        fontWeight: 900,
         text: title,
     });
 
@@ -145,7 +145,7 @@ exports.draw = function(canvas, title, brand) {
         x: 1200 - 50,
         y: 630 - 10,
         fontSize: 12,
-        fontFamily: "'Noto Sans CJK JP Black', 'Noto Sans Japanese'",
+        fontFamily: "'Noto Sans CJK JP Black', 'Noto Sans Japanese', 'Noto sans'",
         text: "#unique_ogp",
     });
 
