@@ -18,6 +18,7 @@ var getArticon = function(title, brand, callback) {
       callback(canvas.get(0));
     });
 };
+
 // create server
 http.createServer(function(request, response) {
     query = url.parse(request.url, true).query;
