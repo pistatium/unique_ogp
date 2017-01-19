@@ -9,11 +9,11 @@
   },
   "author": "kimihiro_n",
   "license": "MIT",
-  "devDependencies": {
+  "dependencies": {
     "canvas": "^1.2.3",
     "jcanvas": "^15.2.7",
-    "jquery": "^1.11.3",
+    "jquery": "^3.1.1",
     "jsdom": "^3.1.2",
-    "onecolor": "^2.5.0"
+    "onecolor": "^3.0.4"
   }
 }
