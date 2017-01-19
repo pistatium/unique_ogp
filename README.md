@@ -16,12 +16,12 @@ This returns an image of the size suitable for OGP image of Facebook when you gi
 
 > /?title=Hello world!&brand=Unique OGP
 ![with_brand.png](https://raw.githubusercontent.com/pistatium/unique_ogp/master/resources/with_brand.png)
-  
+
 --
 
 > /?title=全自動でOGP画像を生成します&brand=Unique OGP
 ![about_ja.png](https://raw.githubusercontent.com/pistatium/unique_ogp/master/resources/about_ja.png)
-  
+
 --
 
 > /?title=http://kimihiro_n.appspot.com&brand=Pistatium
@@ -34,27 +34,13 @@ This returns an image of the size suitable for OGP image of Facebook when you gi
 
 You can try to make the OGP image in real time.
 
-## Setup
-
-__Require__
-* node.js
-* npm
-* node-canvas
-    * https://github.com/Automattic/node-canvas/wiki
-* Noto Sans CJK JP(Font)
-    * http://www.google.com/get/noto/#sans-jpan
+## Setup image API server
 
 ```
-cd src
-npm install
-npm run demo  #for demo.html
-node index.js
-
-# Try api
-open http://localhost:8088?title=unique_ogp
-# Or, try demo page
-open demo.html
+docker run -it -p 8088:8088 pistatium/unique_ogp
 ```
+
+open browser http://X.X.X.X:8088?title=Test
 
 --
 
