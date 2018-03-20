@@ -4,7 +4,7 @@
 This returns an image of the size suitable for OGP image of Facebook when you give API a letter as input.
 
 ## 日本語(Japanese)
-[ブログのアイキャッチ、OGP画像をタイトルから自動生成してみる #Pistatium](http://kimihiro-n.appspot.com/show/5908037558599680)
+[ブログのアイキャッチ、OGP画像をタイトルから自動生成してみる #Pistatium](https://kimihiro-n.appspot.com/show/5908037558599680)
 
 
 ## Sample
@@ -30,7 +30,7 @@ This returns an image of the size suitable for OGP image of Facebook when you gi
 --
 
 ## Online Demo
-[http://pistatium.github.io/unique_ogp/](http://pistatium.github.io/unique_ogp/)
+[http://pistatium.github.io/unique_ogp/](https://pistatium.github.io/unique_ogp/)
 
 You can try to make the OGP image in real time.
 
