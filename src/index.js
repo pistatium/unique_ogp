@@ -19,6 +19,8 @@ var getArticon = function(title, brand, callback) {
     });
 };
 
+const port = process.env.PORT || 8088;
+
 // create server
 http.createServer(function(request, response) {
     query = url.parse(request.url, true).query;
@@ -38,4 +40,4 @@ http.createServer(function(request, response) {
             response.end();
         });
     });    
-}).listen(8088, '0.0.0.0');
+}).listen(port, '0.0.0.0');
