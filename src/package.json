@@ -1,6 +1,6 @@
 {
   "name": "node_articon",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "UniqueOGP automatically produces inherent OGP image from the character string of the title.",
   "main": "index.js",
   "scripts": {
@@ -10,7 +10,7 @@
   "author": "kimihiro_n",
   "license": "MIT",
   "dependencies": {
-    "canvas": "^1.6.2",
+    "canvas": "^2.6.0",
     "jcanvas": "^15.2.7",
     "jquery": "^3.1.1",
     "jsdom": "^3.1.2",
