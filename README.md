@@ -3,6 +3,8 @@
 
 This returns an image of the size suitable for OGP image of Facebook when you give API a letter as input.
 
+[![Run on Google Cloud](https://storage.googleapis.com/cloudrun/button.svg)](https://deploy.cloud.run)
+
 ## 日本語(Japanese)
 [ブログのアイキャッチ、OGP画像をタイトルから自動生成してみる #Pistatium](https://kimihiro-n.appspot.com/show/5908037558599680)
 
