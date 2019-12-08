@@ -11,7 +11,7 @@ var getFrontColor = function(h, i) {
 };
 
 var getBackColor = function(h) {
-    return hsv2rgb(h, 200, 90); 
+    return hsv2rgb(h, 200, 90);
 };
 
 var getAccentColor = function(h, i) {
@@ -45,10 +45,11 @@ var charcount = function(str){
   return len;
 }
 
-exports.draw = function(canvas, title, brand) {
+exports.draw = function(canvas, title, brand, mode) {
     title = title || "";
     brand = brand || "";
-    params = createParams(title); 
+    mode = mode || "nomal";
+    params = createParams(title);
     var p1 = params[0];
     var p2 = params[1];
     var p3 = params[2];
@@ -63,7 +64,7 @@ exports.draw = function(canvas, title, brand) {
         c2: "rgba(255, 255, 255, 0.2)", s2: 0.97
     });
 
-    canvas.clearCanvas(); 
+    canvas.clearCanvas();
     var h = (p3 + (p1 + p2) * 7) % 256;
 
     // Background
@@ -149,7 +150,7 @@ exports.draw = function(canvas, title, brand) {
         text: "#unique_ogp",
     });
 
-    //Brightness 
+    //Brightness
     canvas.drawPath({
         fillStyle: bright_style,
         strokeWidth: 0,
@@ -170,6 +171,6 @@ exports.draw = function(canvas, title, brand) {
             x3: 0, y3: 0
         }
     });
-    
+
     return canvas;
 };
