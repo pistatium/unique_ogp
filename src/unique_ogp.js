@@ -15,7 +15,7 @@ var getFrontColor = function(h, i, mode) {
 
 var getBackColor = function(h, mode) {
     if (mode === 'white') {
-        return hsv2rgb(h, 10, 230);
+        return hsv2rgb(h, 30, 200);
     }
     return hsv2rgb(h, 200, 90);
 
@@ -29,9 +29,9 @@ var getAccentColor = function(h, i, mode) {
     return hsv2rgb(h, (i + 2) * 5, i * 5 + 220);
 };
 
-var getTitleColor = function(mode) {
+var getTitleColor = function(h, mode) {
     if (mode === 'white') {
-        return '#333333'
+        return hsv2rgb(h, 90, 40);
     }
     return '#ffffff'
 }
@@ -134,13 +134,13 @@ exports.draw = function(canvas, title, brand, mode) {
 
     // Brand
     canvas.drawText({
-        fillStyle: getTitleColor(mode),
+        fillStyle: getTitleColor(h, mode),
         x: 1200/2,
         y: (630 - 140)/2,
-	shadowColor: getTitleColor(mode),
-  	shadowBlur: 5,
+	shadowColor: getTitleColor(h, mode),
+  	shadowBlur: 3,
 	shadowX: 3, shadowY: 3,
-        fontSize: (1200 - 400) / (charcount(brand)/2 + 2),
+        fontSize: (1200 - 600) / (charcount(brand)/2 + 2),
         fontFamily: "'noto'",
         fontWeight: 900,
         text: brand,
@@ -163,6 +163,7 @@ exports.draw = function(canvas, title, brand, mode) {
         y: 630 - 10,
         fontSize: 12,
         fontFamily: "'noto'",
+        fontWeight: 400,
         text: "#unique_ogp",
     });
 
