@@ -5,20 +5,36 @@ var hsv2rgb = function(h, s, v) {
     return (new color.HSV(h/255, s/255 , v/255)).hex();
 };
 
-var getFrontColor = function(h, i) {
+var getFrontColor = function(h, i, mode) {
     i = i % 10;
+    if (mode === 'white') {
+        return hsv2rgb(h, 10 - i, 240 + i);
+    }
     return hsv2rgb(h, 200 - i * 10, 120 + i);
 };
 
-var getBackColor = function(h) {
+var getBackColor = function(h, mode) {
+    if (mode === 'white') {
+        return hsv2rgb(h, 10, 230);
+    }
     return hsv2rgb(h, 200, 90);
+
 };
 
-var getAccentColor = function(h, i) {
+var getAccentColor = function(h, i, mode) {
     i = i % 5;
+    if (mode === 'white') {
+        return hsv2rgb(h, 10, i * 5 + 230);
+    }
     return hsv2rgb(h, (i + 2) * 5, i * 5 + 220);
 };
 
+var getTitleColor = function(mode) {
+    if (mode === 'white') {
+        return '#333333'
+    }
+    return '#ffffff'
+}
 var createParams = function(title) {
     var hash = md5.md5(title);
     var p1 = title.length % 256;
@@ -69,7 +85,7 @@ exports.draw = function(canvas, title, brand, mode) {
 
     // Background
     canvas.drawRect({
-        fillStyle: getBackColor(h),
+        fillStyle: getBackColor(h, mode),
         x: 1200/2, y: 630/2,
         width: 1200,
         height: 630,
@@ -78,13 +94,13 @@ exports.draw = function(canvas, title, brand, mode) {
     });
 
     // Small Bubbles
-    var bubble_count = (p1 + p2 + p3) % 50 + 80;
+    var bubble_count = (p1 + p2 + p3) % 50 + 30;
     for (var i =1; i < bubble_count; i++) {
         var x = ((i + p1) * (i + p4)) % 1200;
         var y = ((i + p2) * (i + p5)) % 630;
         var box_size = (630 - y)/8 - i/10;
         canvas.drawRect({
-            fillStyle: getFrontColor(h, i),
+            fillStyle: getFrontColor(h, i, mode),
             x: x, y: y,
             width: box_size,
             height:box_size,
@@ -99,7 +115,7 @@ exports.draw = function(canvas, title, brand, mode) {
         var y = ((i + p4) * (i + p2)) % (630 - 50);
         var box_size = (630 - y + 100) / 2;
         canvas.drawRect({
-            fillStyle: getAccentColor(h, i),
+            fillStyle: getAccentColor(h, i, mode),
             x:x, y:y,
             width: box_size,
             height: box_size,
@@ -118,14 +134,14 @@ exports.draw = function(canvas, title, brand, mode) {
 
     // Brand
     canvas.drawText({
-        fillStyle: "#ffffff",
+        fillStyle: getTitleColor(mode),
         x: 1200/2,
         y: (630 - 140)/2,
-	shadowColor: getBackColor(h),
+	shadowColor: getTitleColor(mode),
   	shadowBlur: 5,
 	shadowX: 3, shadowY: 3,
-        fontSize: (1200 - 100) / (charcount(brand)/2 + 2),
-        fontFamily: "'Noto Sans CJK JP Black', 'Noto Sans Japanese'",
+        fontSize: (1200 - 400) / (charcount(brand)/2 + 2),
+        fontFamily: "'noto'",
         fontWeight: 900,
         text: brand,
     });
@@ -135,7 +151,7 @@ exports.draw = function(canvas, title, brand, mode) {
         x: 1200/2,
         y: 630 - 70,
         fontSize: (1200 - 50) / (charcount(title)/2 + 10),
-        fontFamily: "'Noto Sans CJK JP Black', 'Noto Sans Japanese'",
+        fontFamily: "'noto'",
         fontWeight: 900,
         text: title,
     });
@@ -146,7 +162,7 @@ exports.draw = function(canvas, title, brand, mode) {
         x: 1200 - 50,
         y: 630 - 10,
         fontSize: 12,
-        fontFamily: "'Noto Sans CJK JP Black', 'Noto Sans Japanese'",
+        fontFamily: "'noto'",
         text: "#unique_ogp",
     });
 

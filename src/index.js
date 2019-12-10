@@ -5,9 +5,11 @@ const http = require('http');
     jsdom = require('jsdom'),
     jCanvas = require('jcanvas'),
     unique_ogp = require('./unique_ogp.js');
+const { registerFont } = require('canvas');
 const { JSDOM } = jsdom;
 
 var getArticon = function(title, brand, mode) {
+    registerFont('./fonts/NotoSansCJKjp-Black.otf', {'family': 'noto', 'weight': 'bold'});
     const { window } = new JSDOM(`<!DOCTYPE html><canvas id="canvas" width="1200" height="630"></canvas>`, {runScripts: "outside-only"});
     const $ = jquery(window);
     jCanvas($, window);
