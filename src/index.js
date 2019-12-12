@@ -35,7 +35,11 @@ http.createServer(function(request, response) {
     }
     let canvas = getArticon(title, brand, mode);
     const image = atob(canvas.toDataURL('image/png').split(',')[1]);
-    response.writeHead(200, {"Content-Type": "image/png"});
+    response.writeHead(200, {
+	    "Content-Type": "image/png",
+	    "cache-control": "public, max-age=999999",
+    });
+
     response.write(image);
     response.end();
 
