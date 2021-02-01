@@ -7,6 +7,4 @@ WORKDIR /opt/node/js
 
 RUN ["/bin/bash", "-c", "npm install"]
 
-RUN mv /opt/node/js/fonts/NotoSansCJKjp-Black.otf /usr/local/share/fonts/
-
 ENTRYPOINT node index.js
