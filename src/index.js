@@ -37,6 +37,8 @@ http.createServer(function(request, response) {
         return response.end();
     }
 
+    // TODO: refactor and adjust design after ogp design is created
+
     Canvas.loadImage(OGP_IMAGE_PATH)
         .then(img => {
             const drawCanvas = new Canvas.createCanvas(img.width,img.height);
