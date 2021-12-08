@@ -6,7 +6,10 @@ const http = require('http');
     jCanvas = require('jcanvas'),
     unique_ogp = require('./unique_ogp.js');
 const { registerFont } = require('canvas');
+const Canvas = require('canvas');
 const { JSDOM } = jsdom;
+
+const OGP_IMAGE_PATH = '../resources/white.png';
 
 var getArticon = function(title, brand, mode) {
     registerFont('./fonts/NotoSansCJKjp-Black.otf', {'family': 'noto', 'weight': 'bold'});
@@ -33,14 +36,30 @@ http.createServer(function(request, response) {
         response.write("Add Query to this page. '?title=$TITLE&brand=$BRAND'");
         return response.end();
     }
-    let canvas = getArticon(title, brand, mode);
-    const image = atob(canvas.toDataURL('image/jpeg', 0.75).split(',')[1]);
-    response.writeHead(200, {
-	    "Content-Type": "image/jpeg",
-	    "cache-control": "public, max-age=999999",
-    });
 
-    response.write(image);
-    response.end();
+    Canvas.loadImage(OGP_IMAGE_PATH)
+        .then(img => {
+            const drawCanvas = new Canvas.createCanvas(img.width,img.height);
+            const ctx = drawCanvas.getContext('2d');
+
+            ctx.drawImage(img, 0, 0);
+
+            const x = (img.width / 2);
+            const y = (img.height / 2);
+
+            ctx.fillStyle = 'black';
+            ctx.font = "bold 120px Arial";
+            ctx.fillText(`OGP: ${title}`, x, y);
+
+            response.writeHead(200, {
+                "Content-Type": "image/png",
+                "cache-control": "public, max-age=999999",
+            });
+            response.write(new Buffer.from(drawCanvas.toDataURL().split(',')[1], 'base64'));
+            response.end();
+        })
+        .catch(err => {
+            console.log(`err: ${err}`);
+        })
 
 }).listen(port, '0.0.0.0');
